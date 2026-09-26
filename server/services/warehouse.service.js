@@ -77,3 +77,48 @@ export const addLocationToWarehouse = async (warehouseId, { name, code }) => {
 
   return warehouse;
 };
+
+/**
+ * Renames a warehouse or changes its address.
+ *
+ * Deliberately does not accept `locations`: a location code is the join key
+ * used by documents and ledger entries, so removing or recoding one would
+ * silently orphan the stock recorded against it. Locations are added through
+ * addLocationToWarehouse, and retired by deactivating the warehouse instead.
+ */
+export const updateWarehouse = async (warehouseId, { name, code, address }) => {
+  const warehouse = await getWarehouseById(warehouseId);
+
+  const updates = {};
+  if (name !== undefined) updates.name = name;
+  if (code !== undefined) updates.code = code;
+  if (address !== undefined) updates.address = address;
+
+  if (Object.keys(updates).length === 0) {
+    throw ApiError.badRequest('Provide at least one of name, code or address to update');
+  }
+
+  // Check the new name and code against every other warehouse, so the conflict
+  // is reported before the unique index rejects the write.
+  const clash = await Warehouse.findOne({
+    _id: { $ne: warehouse._id },
+    $or: [{ name: updates.name }, { code: updates.code }].filter((clause) =>
+      Object.values(clause)[0] !== undefined
+    )
+  });
+
+  if (clash) {
+    throw ApiError.conflict('Warehouse with this name or code already exists');
+  }
+
+  Object.assign(warehouse, updates);
+
+  try {
+    return await warehouse.save();
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      throw ApiError.conflict('Warehouse with this name or code already exists');
+    }
+    throw error;
+  }
+};

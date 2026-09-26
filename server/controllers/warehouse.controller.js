@@ -2,6 +2,7 @@ import {
   listWarehouses,
   getWarehouseById as fetchWarehouseById,
   createWarehouse,
+  updateWarehouse,
   addLocationToWarehouse
 } from '../services/warehouse.service.js';
 import { buildPagination, parseBooleanFlag } from '../utils/query.js';
@@ -84,6 +85,24 @@ export const addLocation = async (req, res, next) => {
     return sendSuccess(res, {
       message: 'Location added successfully',
       statusCode: 201,
+      data: warehouse
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Rename a warehouse or change its address
+// @route   PUT /api/warehouses/:id
+// @access  Inventory manager
+export const updateWarehouseDetails = async (req, res, next) => {
+  try {
+    const { name, code, address } = req.body;
+
+    const warehouse = await updateWarehouse(req.params.id, { name, code, address });
+
+    return sendSuccess(res, {
+      message: 'Warehouse updated successfully',
       data: warehouse
     });
   } catch (error) {

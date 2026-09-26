@@ -145,7 +145,7 @@ const TransferList = () => {
             </thead>
             <tbody>
               {transfers.map((transfer) => {
-                const totalQuantity = (transfer.products || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+                const totalQuantity = (transfer.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
                 return (
                   <tr key={transfer._id}>
@@ -154,8 +154,8 @@ const TransferList = () => {
                     </td>
                     <td>
                       <div className="transfer-items-cell">
-                        {(transfer.products || []).map((item, index) => (
-                          <span key={`${item.product}-${index}`} className="receipt-item-chip">
+                        {(transfer.items || []).map((item, index) => (
+                          <span key={`${item.productName}-${index}`} className="receipt-item-chip">
                             {item.product} × {item.quantity}
                           </span>
                         ))}
@@ -163,20 +163,20 @@ const TransferList = () => {
                     </td>
                     <td>
                       <div className="receipt-location-cell">
-                        <strong>{transfer.sourceWarehouse}</strong>
-                        <span>{transfer.sourceLocation}</span>
+                        <strong>{transfer.from?.warehouse}</strong>
+                        <span>{transfer.from?.location}</span>
                       </div>
                     </td>
                     <td>
                       <div className="receipt-location-cell">
-                        <strong>{transfer.destinationWarehouse}</strong>
-                        <span>{transfer.destinationLocation}</span>
+                        <strong>{transfer.to?.warehouse}</strong>
+                        <span>{transfer.to?.location}</span>
                       </div>
                     </td>
                     <td className="font-mono">{totalQuantity}</td>
                     <td>
-                      <StatusBadge type={transfer.status === 'DONE' ? 'success' : transfer.status === 'CANCELED' ? 'danger' : 'default'}>
-                        {transfer.status}
+                      <StatusBadge type={transfer.statusValue === 'done' ? 'success' : transfer.statusValue === 'canceled' ? 'danger' : 'default'}>
+                        {transfer.statusLabel}
                       </StatusBadge>
                     </td>
                     <td>{new Date(transfer.createdAt).toLocaleDateString()}</td>
@@ -186,7 +186,7 @@ const TransferList = () => {
                           <Eye size={16} />
                         </button>
 
-                        {(transfer.status === 'DRAFT' || transfer.status === 'READY') && (
+                        {(transfer.statusValue === 'draft' || transfer.statusValue === 'ready') && (
                           <button className="btn-action btn-action-edit" title="Process transfer" onClick={() => handleProcess(transfer._id)} disabled={actionLoading}>
                             <CheckCircle2 size={16} />
                           </button>

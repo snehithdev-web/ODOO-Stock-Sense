@@ -161,9 +161,9 @@ const ReceiptList = () => {
                   <td>{receipt.supplier}</td>
                   <td>
                     <div className="receipt-items-cell">
-                      {receipt.products && receipt.products.length > 0 ? (
-                        receipt.products.map((item, index) => (
-                          <span key={`${item.product}-${index}`} className="receipt-item-chip">
+                      {receipt.items && receipt.items.length > 0 ? (
+                        receipt.items.map((item, index) => (
+                          <span key={`${item.productName}-${index}`} className="receipt-item-chip">
                             {item.product} × {item.quantity}
                           </span>
                         ))
@@ -181,14 +181,14 @@ const ReceiptList = () => {
                   <td>
                     <StatusBadge
                       type={
-                        receipt.status === 'DONE'
+                        receipt.statusValue === 'done'
                           ? 'success'
-                          : receipt.status === 'CANCELED'
+                          : receipt.statusValue === 'canceled'
                             ? 'danger'
                             : 'default'
                       }
                     >
-                      {receipt.status}
+                      {receipt.statusLabel}
                     </StatusBadge>
                   </td>
                   <td>{new Date(receipt.createdAt).toLocaleDateString()}</td>
@@ -202,7 +202,7 @@ const ReceiptList = () => {
                         <Eye size={16} />
                       </button>
 
-                      {receipt.status === 'DRAFT' && (
+                      {receipt.statusValue === 'draft' && (
                         <button
                           className="btn-action btn-action-edit"
                           title="Validate receipt"

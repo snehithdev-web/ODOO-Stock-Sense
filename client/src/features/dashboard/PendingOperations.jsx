@@ -71,13 +71,21 @@ const PendingOperations = ({ title, records = [], type, loading = false, error =
                 <td><span className="font-mono sku-badge">{record.reference}</span></td>
                 {type === 'Receipt' && <td>{record.supplier}</td>}
                 {type === 'Delivery' && <td>{record.customer}</td>}
-                {type === 'Transfer' && <td>{record.items || record.product || '—'}</td>}
-                {type === 'Receipt' && <td>{record.items ? record.items.length : 0}</td>}
-                {type === 'Delivery' && <td>{record.items ? record.items.length : 0}</td>}
+                {type === 'Transfer' && <td>{record.itemSummary || '-'}</td>}
+                {type === 'Receipt' && <td>{record.itemCount ?? 0}</td>}
+                {type === 'Delivery' && <td>{record.itemCount ?? 0}</td>}
                 <td>{record.warehouse}</td>
                 <td>
-                  <StatusBadge type={record.status === 'DONE' ? 'success' : record.status === 'CANCELED' ? 'danger' : 'default'}>
-                    {record.status}
+                  <StatusBadge
+                    type={
+                      record.statusValue === 'done'
+                        ? 'success'
+                        : record.statusValue === 'canceled'
+                          ? 'danger'
+                          : 'default'
+                    }
+                  >
+                    {record.statusLabel}
                   </StatusBadge>
                 </td>
                 <td>{new Date(record.createdAt).toLocaleDateString()}</td>

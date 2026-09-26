@@ -5,6 +5,7 @@ import authRoutes from './routes/auth.routes.js';
 import productRoutes from './routes/product.routes.js';
 import warehouseRoutes from './routes/warehouse.routes.js';
 import stockRoutes from './routes/stock.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 import {
   receiptRouter,
   deliveryRouter,
@@ -63,6 +64,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/stock', stockRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/receipts', receiptRouter);
 app.use('/api/deliveries', deliveryRouter);
 app.use('/api/transfers', transferRouter);

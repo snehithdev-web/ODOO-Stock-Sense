@@ -1,39 +1,50 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { PackagePlus, Save, X, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { useReferenceData } from '../shared/useReferenceData';
 
-const customerOptions = [
-  'ABC Manufacturing',
-  'North Ridge Traders',
-  'BuildWell Materials',
-  'Harbor Logistics',
-  'BluePeak Retail',
-];
+/**
+ * Create a delivery order: stock leaving the warehouse for a customer.
+ *
+ * Submitted body, matching the API contract:
+ *   { customer: { name, code }, warehouse, location, items: [{ product, quantity }] }
+ *
+ * The customer is free text, because the spec has deliveries carrying a customer
+ * but never defines a customer entity, so the server captures it inline.
+ *
+ * There is no "available stock" figure shown per line. Availability is a balance
+ * per (product, warehouse, location) in the ledger, and the server is what
+ * decides whether the document can be posted: it validates every line against
+ * the current balances and rejects the whole document rather than letting stock
+ * go negative. A number invented in the browser would drift from the ledger and
+ * could contradict the result.
+ */
 
-const warehouseOptions = ['Main Warehouse', 'North Hub', 'South Hub', 'Cold Storage'];
-
-const productCatalog = [
-  'Steel Rods',
-  'Cement',
-  'Wire Mesh',
-  'Pipe Fittings',
-  'Paint',
-  'Sandbags',
-  'Industrial Fasteners',
-];
-
-const createEmptyRow = () => ({ product: '', quantity: 1, availableStock: 0 });
+const createEmptyRow = () => ({ product: '', quantity: 1 });
 
 const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
   const [formData, setFormData] = useState({
     customer: '',
+    customerCode: '',
     warehouse: '',
-    sourceLocation: '',
-    products: [createEmptyRow()],
+    location: '',
+    products: [createEmptyRow()]
   });
   const [error, setError] = useState('');
+  const { warehouses, productOptions, locationsFor, loading, loadError } = useReferenceData();
+
+  const locations = useMemo(
+    () => locationsFor(formData.warehouse),
+    [locationsFor, formData.warehouse]
+  );
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Changing the warehouse invalidates the location, because a code only means
+  // something inside its own warehouse.
+  const updateWarehouse = (warehouseId) => {
+    setFormData((prev) => ({ ...prev, warehouse: warehouseId, location: '' }));
   };
 
   const updateProductRow = (index, field, value) => {
@@ -41,33 +52,13 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
       ...prev,
       products: prev.products.map((row, rowIndex) => {
         if (rowIndex !== index) return row;
-
-        const nextValue = field === 'quantity' ? Number(value) || 0 : value;
-        const updatedRow = { ...row, [field]: nextValue };
-
-        if (field === 'product') {
-          const stockMap = {
-            'Steel Rods': 100,
-            Cement: 60,
-            'Wire Mesh': 80,
-            'Pipe Fittings': 45,
-            Paint: 40,
-            Sandbags: 32,
-            'Industrial Fasteners': 55,
-          };
-          updatedRow.availableStock = stockMap[nextValue] || 0;
-        }
-
-        return updatedRow;
-      }),
+        return { ...row, [field]: field === 'quantity' ? Number(value) || 0 : value };
+      })
     }));
   };
 
   const addProductRow = () => {
-    setFormData((prev) => ({
-      ...prev,
-      products: [...prev.products, createEmptyRow()],
-    }));
+    setFormData((prev) => ({ ...prev, products: [...prev.products, createEmptyRow()] }));
   };
 
   const removeProductRow = (index) => {
@@ -76,38 +67,19 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
       products:
         prev.products.length > 1
           ? prev.products.filter((_, rowIndex) => rowIndex !== index)
-          : [createEmptyRow()],
+          : [createEmptyRow()]
     }));
   };
 
   const validateForm = () => {
-    if (!formData.customer.trim()) {
-      return 'Customer is required.';
-    }
-
-    if (!formData.warehouse.trim()) {
-      return 'Warehouse is required.';
-    }
-
-    if (!formData.sourceLocation.trim()) {
-      return 'Source location is required.';
-    }
-
-    if (!formData.products.length) {
-      return 'At least one product is required.';
-    }
+    if (!formData.customer.trim()) return 'Customer is required.';
+    if (!formData.warehouse) return 'Warehouse is required.';
+    if (!formData.location) return 'Location is required.';
 
     for (const row of formData.products) {
-      if (!row.product.trim()) {
-        return 'Each product row must include a product.';
-      }
-
-      if (!Number.isFinite(row.quantity) || Number(row.quantity) <= 0) {
+      if (!row.product) return 'Each product row must include a product.';
+      if (!Number.isFinite(row.quantity) || row.quantity <= 0) {
         return 'Each product quantity must be greater than zero.';
-      }
-
-      if (row.quantity > (row.availableStock || 0)) {
-        return `Quantity for ${row.product} exceeds available stock.`;
       }
     }
 
@@ -124,21 +96,19 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
       return;
     }
 
-    const payload = {
-      customer: formData.customer.trim(),
-      warehouse: formData.warehouse.trim(),
-      sourceLocation: formData.sourceLocation.trim(),
-      products: formData.products.map((row) => ({
-        product: row.product.trim(),
+    await onSubmit({
+      customer: {
+        name: formData.customer.trim(),
+        code: formData.customerCode.trim()
+      },
+      warehouse: formData.warehouse,
+      location: formData.location,
+      items: formData.products.map((row) => ({
+        product: row.product,
         quantity: Number(row.quantity),
-        availableStock: Number(row.availableStock) || 0,
-      })),
-      createdBy: 'Current User',
-      status: 'DRAFT',
-      createdAt: new Date().toISOString(),
-    };
-
-    await onSubmit(payload);
+        notes: ''
+      }))
+    });
   };
 
   return (
@@ -149,35 +119,42 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
             <PackagePlus size={22} color="#6366f1" />
             <h3>Create Delivery Order</h3>
           </div>
-          <button className="btn-icon" onClick={onClose} aria-label="Close modal">
+          <button className="btn-icon" onClick={onClose} aria-label="Close modal" type="button">
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
-          {error && (
+          {(error || loadError) && (
             <div className="alert alert-error">
               <AlertCircle size={18} />
-              <span>{error}</span>
+              <span>{error || loadError}</span>
             </div>
           )}
 
           <div className="delivery-form-grid">
             <div className="form-group">
               <label htmlFor="customer">Customer *</label>
-              <select
+              <input
                 id="customer"
                 className="form-control"
+                type="text"
+                placeholder="e.g. BuildWell Materials"
                 value={formData.customer}
                 onChange={(e) => updateField('customer', e.target.value)}
-              >
-                <option value="">Select customer</option>
-                {customerOptions.map((customer) => (
-                  <option key={customer} value={customer}>
-                    {customer}
-                  </option>
-                ))}
-              </select>
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="customerCode">Customer Code</label>
+              <input
+                id="customerCode"
+                className="form-control"
+                type="text"
+                placeholder="Optional"
+                value={formData.customerCode}
+                onChange={(e) => updateField('customerCode', e.target.value)}
+              />
             </div>
 
             <div className="form-group">
@@ -186,27 +163,36 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
                 id="warehouse"
                 className="form-control"
                 value={formData.warehouse}
-                onChange={(e) => updateField('warehouse', e.target.value)}
+                onChange={(e) => updateWarehouse(e.target.value)}
+                disabled={loading}
               >
-                <option value="">Select warehouse</option>
-                {warehouseOptions.map((warehouse) => (
-                  <option key={warehouse} value={warehouse}>
-                    {warehouse}
+                <option value="">{loading ? 'Loading warehouses...' : 'Select warehouse'}</option>
+                {warehouses.map((warehouse) => (
+                  <option key={warehouse._id} value={warehouse._id}>
+                    {warehouse.name} ({warehouse.code})
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className="form-group col-span-2">
-              <label htmlFor="sourceLocation">Source Location *</label>
-              <input
-                id="sourceLocation"
+            <div className="form-group">
+              <label htmlFor="location">Pick From Location *</label>
+              <select
+                id="location"
                 className="form-control"
-                type="text"
-                placeholder="e.g. Main Store, Dock 2, Picking Zone A"
-                value={formData.sourceLocation}
-                onChange={(e) => updateField('sourceLocation', e.target.value)}
-              />
+                value={formData.location}
+                onChange={(e) => updateField('location', e.target.value)}
+                disabled={!formData.warehouse}
+              >
+                <option value="">
+                  {formData.warehouse ? 'Select location' : 'Select a warehouse first'}
+                </option>
+                {locations.map((location) => (
+                  <option key={location.code} value={location.code}>
+                    {location.name} ({location.code})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -227,11 +213,12 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
                     className="form-control"
                     value={row.product}
                     onChange={(e) => updateProductRow(index, 'product', e.target.value)}
+                    disabled={loading}
                   >
-                    <option value="">Select product</option>
-                    {productCatalog.map((product) => (
-                      <option key={product} value={product}>
-                        {product}
+                    <option value="">{loading ? 'Loading products...' : 'Select product'}</option>
+                    {productOptions.map((product) => (
+                      <option key={product.value} value={product.value}>
+                        {product.label}
                       </option>
                     ))}
                   </select>
@@ -242,15 +229,11 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
                   <input
                     type="number"
                     min="1"
+                    step="any"
                     className="form-control"
                     value={row.quantity}
                     onChange={(e) => updateProductRow(index, 'quantity', e.target.value)}
                   />
-                </div>
-
-                <div className="form-group delivery-stock">
-                  <label>Available</label>
-                  <div className="stock-readout">{row.availableStock || 0}</div>
                 </div>
 
                 <button
@@ -269,7 +252,7 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
             <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancel
             </button>
-            <button type="submit" disabled={submitting} className="btn btn-primary">
+            <button type="submit" disabled={submitting || loading} className="btn btn-primary">
               {submitting ? (
                 <span className="spinner-sm"></span>
               ) : (

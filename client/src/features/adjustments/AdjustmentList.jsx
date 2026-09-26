@@ -163,8 +163,8 @@ const AdjustmentList = () => {
                       {difference}
                     </td>
                     <td>
-                      <StatusBadge type={adjustment.status === 'DONE' ? 'success' : adjustment.status === 'CANCELED' ? 'danger' : 'default'}>
-                        {adjustment.status}
+                      <StatusBadge type={adjustment.statusValue === 'done' ? 'success' : adjustment.statusValue === 'canceled' ? 'danger' : 'default'}>
+                        {adjustment.statusLabel}
                       </StatusBadge>
                     </td>
                     <td>{new Date(adjustment.createdAt).toLocaleDateString()}</td>
@@ -174,7 +174,7 @@ const AdjustmentList = () => {
                           <Eye size={16} />
                         </button>
 
-                        {adjustment.status === 'DRAFT' && (
+                        {adjustment.statusValue === 'draft' && (
                           <button className="btn-action btn-action-edit" title="Apply adjustment" onClick={() => handleApplyAdjustment(adjustment._id)} disabled={actionLoading}>
                             <CheckCircle2 size={16} />
                           </button>

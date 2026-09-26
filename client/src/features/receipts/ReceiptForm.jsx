@@ -1,39 +1,45 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { PackagePlus, Save, X, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { useReferenceData } from '../shared/useReferenceData';
 
-const supplierOptions = [
-  'ABC Steel Suppliers',
-  'BuildWell Materials',
-  'Metro Supply Co.',
-  'North Ridge Traders',
-  'Global Hardware Group',
-];
-
-const warehouseOptions = ['Main Warehouse', 'North Hub', 'South Hub', 'Cold Storage'];
-
-const availableProducts = [
-  'Steel Rods',
-  'Cement',
-  'Wire Mesh',
-  'Pipe Fittings',
-  'Paint',
-  'Sandbags',
-  'Industrial Fasteners',
-];
+/**
+ * Create a receipt: stock arriving from a vendor.
+ *
+ * The submitted body matches the API contract exactly:
+ *   { supplier: { name, code }, warehouse, location, items: [{ product, quantity }] }
+ *
+ * Warehouse, location and product are chosen from real records and submitted as
+ * ids, because the API resolves all three against the database. The supplier is
+ * free text, since the spec has receipts carrying a supplier but never defines a
+ * supplier entity, so the server captures it inline.
+ *
+ * Creating a receipt only ever produces a draft. Nothing moves stock until the
+ * document is marked ready and posted, which is the server's decision.
+ */
 
 const createEmptyRow = () => ({ product: '', quantity: 1 });
 
 const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
   const [formData, setFormData] = useState({
     supplier: '',
+    supplierCode: '',
     warehouse: '',
     location: '',
-    products: [createEmptyRow()],
+    products: [createEmptyRow()]
   });
   const [error, setError] = useState('');
+  const { warehouses, productOptions, locationsFor, loading, loadError } = useReferenceData();
+
+  const locations = useMemo(() => locationsFor(formData.warehouse), [locationsFor, formData.warehouse]);
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Changing the warehouse invalidates the location, because a code only means
+  // something inside its own warehouse.
+  const updateWarehouse = (warehouseId) => {
+    setFormData((prev) => ({ ...prev, warehouse: warehouseId, location: '' }));
   };
 
   const updateProductRow = (index, field, value) => {
@@ -41,51 +47,34 @@ const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
       ...prev,
       products: prev.products.map((row, rowIndex) =>
         rowIndex === index
-          ? {
-              ...row,
-              [field]: field === 'quantity' ? Number(value) || 0 : value,
-            }
+          ? { ...row, [field]: field === 'quantity' ? Number(value) || 0 : value }
           : row
-      ),
+      )
     }));
   };
 
   const addProductRow = () => {
-    setFormData((prev) => ({
-      ...prev,
-      products: [...prev.products, createEmptyRow()],
-    }));
+    setFormData((prev) => ({ ...prev, products: [...prev.products, createEmptyRow()] }));
   };
 
   const removeProductRow = (index) => {
     setFormData((prev) => ({
       ...prev,
-      products: prev.products.length > 1 ? prev.products.filter((_, rowIndex) => rowIndex !== index) : [createEmptyRow()],
+      products:
+        prev.products.length > 1
+          ? prev.products.filter((_, rowIndex) => rowIndex !== index)
+          : [createEmptyRow()]
     }));
   };
 
   const validateForm = () => {
-    if (!formData.supplier.trim()) {
-      return 'Supplier is required.';
-    }
-
-    if (!formData.warehouse.trim()) {
-      return 'Warehouse is required.';
-    }
-
-    if (!formData.location.trim()) {
-      return 'Location is required.';
-    }
-
-    if (!formData.products.length) {
-      return 'Add at least one product.';
-    }
+    if (!formData.supplier.trim()) return 'Supplier is required.';
+    if (!formData.warehouse) return 'Warehouse is required.';
+    if (!formData.location) return 'Location is required.';
 
     for (const row of formData.products) {
-      if (!row.product.trim()) {
-        return 'Each product row must include a product.';
-      }
-      if (!Number.isFinite(row.quantity) || Number(row.quantity) <= 0) {
+      if (!row.product) return 'Each product row must include a product.';
+      if (!Number.isFinite(row.quantity) || row.quantity <= 0) {
         return 'Each product quantity must be greater than zero.';
       }
     }
@@ -103,20 +92,19 @@ const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
       return;
     }
 
-    const payload = {
-      supplier: formData.supplier.trim(),
-      warehouse: formData.warehouse.trim(),
-      location: formData.location.trim(),
-      products: formData.products.map((row) => ({
-        product: row.product.trim(),
+    await onSubmit({
+      supplier: {
+        name: formData.supplier.trim(),
+        code: formData.supplierCode.trim()
+      },
+      warehouse: formData.warehouse,
+      location: formData.location,
+      items: formData.products.map((row) => ({
+        product: row.product,
         quantity: Number(row.quantity),
-      })),
-      createdBy: 'Current User',
-      status: 'DRAFT',
-      createdAt: new Date().toISOString(),
-    };
-
-    await onSubmit(payload);
+        notes: ''
+      }))
+    });
   };
 
   return (
@@ -127,35 +115,42 @@ const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
             <PackagePlus size={22} color="#6366f1" />
             <h3>Create Receipt</h3>
           </div>
-          <button className="btn-icon" onClick={onClose} aria-label="Close modal">
+          <button className="btn-icon" onClick={onClose} aria-label="Close modal" type="button">
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
-          {error && (
+          {(error || loadError) && (
             <div className="alert alert-error">
               <AlertCircle size={18} />
-              <span>{error}</span>
+              <span>{error || loadError}</span>
             </div>
           )}
 
           <div className="receipt-form-grid">
             <div className="form-group">
               <label htmlFor="supplier">Supplier *</label>
-              <select
+              <input
                 id="supplier"
                 className="form-control"
+                type="text"
+                placeholder="e.g. ABC Steel Suppliers"
                 value={formData.supplier}
                 onChange={(e) => updateField('supplier', e.target.value)}
-              >
-                <option value="">Select supplier</option>
-                {supplierOptions.map((supplier) => (
-                  <option key={supplier} value={supplier}>
-                    {supplier}
-                  </option>
-                ))}
-              </select>
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="supplierCode">Supplier Code</label>
+              <input
+                id="supplierCode"
+                className="form-control"
+                type="text"
+                placeholder="Optional"
+                value={formData.supplierCode}
+                onChange={(e) => updateField('supplierCode', e.target.value)}
+              />
             </div>
 
             <div className="form-group">
@@ -164,27 +159,36 @@ const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
                 id="warehouse"
                 className="form-control"
                 value={formData.warehouse}
-                onChange={(e) => updateField('warehouse', e.target.value)}
+                onChange={(e) => updateWarehouse(e.target.value)}
+                disabled={loading}
               >
-                <option value="">Select warehouse</option>
-                {warehouseOptions.map((warehouse) => (
-                  <option key={warehouse} value={warehouse}>
-                    {warehouse}
+                <option value="">{loading ? 'Loading warehouses...' : 'Select warehouse'}</option>
+                {warehouses.map((warehouse) => (
+                  <option key={warehouse._id} value={warehouse._id}>
+                    {warehouse.name} ({warehouse.code})
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className="form-group col-span-2">
+            <div className="form-group">
               <label htmlFor="location">Location *</label>
-              <input
+              <select
                 id="location"
                 className="form-control"
-                type="text"
-                placeholder="e.g. Main Store, Receiving Bay A"
                 value={formData.location}
                 onChange={(e) => updateField('location', e.target.value)}
-              />
+                disabled={!formData.warehouse}
+              >
+                <option value="">
+                  {formData.warehouse ? 'Select location' : 'Select a warehouse first'}
+                </option>
+                {locations.map((location) => (
+                  <option key={location.code} value={location.code}>
+                    {location.name} ({location.code})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -205,11 +209,12 @@ const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
                     className="form-control"
                     value={row.product}
                     onChange={(e) => updateProductRow(index, 'product', e.target.value)}
+                    disabled={loading}
                   >
-                    <option value="">Select product</option>
-                    {availableProducts.map((product) => (
-                      <option key={product} value={product}>
-                        {product}
+                    <option value="">{loading ? 'Loading products...' : 'Select product'}</option>
+                    {productOptions.map((product) => (
+                      <option key={product.value} value={product.value}>
+                        {product.label}
                       </option>
                     ))}
                   </select>
@@ -220,6 +225,7 @@ const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
                   <input
                     type="number"
                     min="1"
+                    step="any"
                     className="form-control"
                     value={row.quantity}
                     onChange={(e) => updateProductRow(index, 'quantity', e.target.value)}
@@ -242,7 +248,7 @@ const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
             <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancel
             </button>
-            <button type="submit" disabled={submitting} className="btn btn-primary">
+            <button type="submit" disabled={submitting || loading} className="btn btn-primary">
               {submitting ? (
                 <span className="spinner-sm"></span>
               ) : (

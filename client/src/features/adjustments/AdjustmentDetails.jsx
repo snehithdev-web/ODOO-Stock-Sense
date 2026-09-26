@@ -16,8 +16,8 @@ const AdjustmentDetails = ({ adjustment, onApply, onCancel, loading = false }) =
             <ClipboardCheck size={22} color="#6366f1" />
             <h3>{adjustment.reference}</h3>
           </div>
-          <StatusBadge type={adjustment.status === 'DONE' ? 'success' : adjustment.status === 'CANCELED' ? 'danger' : 'default'}>
-            {adjustment.status}
+          <StatusBadge type={adjustment.statusValue === 'done' ? 'success' : adjustment.statusValue === 'canceled' ? 'danger' : 'default'}>
+            {adjustment.statusLabel}
           </StatusBadge>
         </div>
 
@@ -65,18 +65,18 @@ const AdjustmentDetails = ({ adjustment, onApply, onCancel, loading = false }) =
           </div>
 
           <div className="adjustment-action-row">
-            {adjustment.status === 'DRAFT' && (
+            {adjustment.statusValue === 'draft' && (
               <button type="button" className="btn btn-primary" onClick={onApply} disabled={loading || !isActionable}>
                 <CheckCircle2 size={18} />
                 <span>{loading ? 'Applying...' : 'Apply Adjustment'}</span>
               </button>
             )}
 
-            {adjustment.status === 'DONE' && (
+            {adjustment.statusValue === 'done' && (
               <div className="detail-note success-note">This adjustment has already been applied and no further action is required.</div>
             )}
 
-            {adjustment.status === 'CANCELED' && (
+            {adjustment.statusValue === 'canceled' && (
               <div className="detail-note">This adjustment was canceled and cannot be processed further.</div>
             )}
 

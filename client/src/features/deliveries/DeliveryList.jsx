@@ -194,9 +194,9 @@ const DeliveryList = () => {
                   <td>{delivery.customer}</td>
                   <td>
                     <div className="delivery-items-cell">
-                      {delivery.products && delivery.products.length > 0 ? (
-                        delivery.products.map((item, index) => (
-                          <span key={`${item.product}-${index}`} className="receipt-item-chip">
+                      {delivery.items && delivery.items.length > 0 ? (
+                        delivery.items.map((item, index) => (
+                          <span key={`${item.productName}-${index}`} className="receipt-item-chip">
                             {item.product} × {item.quantity}
                           </span>
                         ))
@@ -206,20 +206,20 @@ const DeliveryList = () => {
                     </div>
                   </td>
                   <td>{delivery.warehouse}</td>
-                  <td>{delivery.sourceLocation}</td>
+                  <td>{delivery.location}</td>
                   <td>
                     <StatusBadge
                       type={
-                        delivery.status === 'DONE'
+                        delivery.statusValue === 'done'
                           ? 'success'
-                          : delivery.status === 'CANCELED'
+                          : delivery.statusValue === 'canceled'
                             ? 'danger'
-                            : delivery.status === 'PACKED'
+                            : delivery.statusValue === 'ready'
                               ? 'info'
                               : 'default'
                       }
                     >
-                      {delivery.status}
+                      {delivery.statusLabel}
                     </StatusBadge>
                   </td>
                   <td>{new Date(delivery.createdAt).toLocaleDateString()}</td>
@@ -233,7 +233,7 @@ const DeliveryList = () => {
                         <Eye size={16} />
                       </button>
 
-                      {delivery.status === 'DRAFT' && (
+                      {delivery.statusValue === 'draft' && (
                         <button
                           className="btn-action btn-action-edit"
                           title="Pick delivery"
@@ -244,7 +244,7 @@ const DeliveryList = () => {
                         </button>
                       )}
 
-                      {delivery.status === 'PICKED' && (
+                      {delivery.statusValue === 'waiting' && (
                         <button
                           className="btn-action btn-action-edit"
                           title="Pack delivery"
@@ -255,7 +255,7 @@ const DeliveryList = () => {
                         </button>
                       )}
 
-                      {delivery.status === 'PACKED' && (
+                      {delivery.statusValue === 'ready' && (
                         <button
                           className="btn-action btn-action-edit"
                           title="Validate delivery"

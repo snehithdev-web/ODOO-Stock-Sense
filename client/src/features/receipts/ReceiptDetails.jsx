@@ -5,8 +5,8 @@ import StatusBadge from '../../components/StatusBadge';
 const ReceiptDetails = ({ receipt, onValidate, onCancel, loading = false }) => {
   if (!receipt) return null;
 
-  const isDraft = receipt.status === 'DRAFT';
-  const isDone = receipt.status === 'DONE';
+  const isDraft = receipt.statusValue === 'draft';
+  const isDone = receipt.statusValue === 'done';
 
   return (
     <div className="modal-overlay" onClick={onCancel ? onCancel : undefined}>
@@ -16,8 +16,8 @@ const ReceiptDetails = ({ receipt, onValidate, onCancel, loading = false }) => {
             <Package size={22} color="#6366f1" />
             <h3>{receipt.reference}</h3>
           </div>
-          <StatusBadge type={receipt.status === 'DONE' ? 'success' : receipt.status === 'CANCELED' ? 'danger' : 'default'}>
-            {receipt.status}
+          <StatusBadge type={receipt.statusValue === 'done' ? 'success' : receipt.statusValue === 'canceled' ? 'danger' : 'default'}>
+            {receipt.statusLabel}
           </StatusBadge>
         </div>
 
@@ -59,9 +59,9 @@ const ReceiptDetails = ({ receipt, onValidate, onCancel, loading = false }) => {
                 </tr>
               </thead>
               <tbody>
-                {(receipt.products || []).map((item, index) => (
-                  <tr key={`${item.product}-${index}`}>
-                    <td>{item.product}</td>
+                {(receipt.items || []).map((item, index) => (
+                  <tr key={`${item.productName}-${index}`}>
+                    <td>{item.productName}</td>
                     <td className="font-mono">{item.quantity}</td>
                   </tr>
                 ))}

@@ -17,10 +17,10 @@ const TransferDetails = ({ transfer, onProcess, onCancel, loading = false }) => 
           </div>
           <StatusBadge
             type={
-              transfer.status === 'DONE' ? 'success' : transfer.status === 'CANCELED' ? 'danger' : 'default'
+              transfer.statusValue === 'done' ? 'success' : transfer.statusValue === 'canceled' ? 'danger' : 'default'
             }
           >
-            {transfer.status}
+            {transfer.statusLabel}
           </StatusBadge>
         </div>
 
@@ -36,11 +36,11 @@ const TransferDetails = ({ transfer, onProcess, onCancel, loading = false }) => 
             </div>
             <div className="detail-group">
               <span className="detail-label">Source Location</span>
-              <strong>{transfer.sourceLocation}</strong>
+              <strong>{transfer.from?.location}</strong>
             </div>
             <div className="detail-group">
               <span className="detail-label">Destination Location</span>
-              <strong>{transfer.destinationLocation}</strong>
+              <strong>{transfer.to?.location}</strong>
             </div>
             <div className="detail-group">
               <span className="detail-label">Created By</span>
@@ -62,9 +62,9 @@ const TransferDetails = ({ transfer, onProcess, onCancel, loading = false }) => 
                 </tr>
               </thead>
               <tbody>
-                {(transfer.products || []).map((item, index) => (
-                  <tr key={`${item.product}-${index}`}>
-                    <td>{item.product}</td>
+                {(transfer.items || []).map((item, index) => (
+                  <tr key={`${item.productName}-${index}`}>
+                    <td>{item.productName}</td>
                     <td className="font-mono">{item.quantity}</td>
                   </tr>
                 ))}
@@ -73,25 +73,25 @@ const TransferDetails = ({ transfer, onProcess, onCancel, loading = false }) => 
           </div>
 
           <div className="transfer-action-row">
-            {transfer.status === 'DRAFT' && (
+            {transfer.statusValue === 'draft' && (
               <button type="button" className="btn btn-primary" onClick={onProcess} disabled={loading || !canProcess}>
                 <CheckCircle2 size={18} />
                 <span>{loading ? 'Processing...' : 'Confirm / Process'}</span>
               </button>
             )}
 
-            {transfer.status === 'READY' && (
+            {transfer.statusValue === 'ready' && (
               <button type="button" className="btn btn-primary" onClick={onProcess} disabled={loading || !canProcess}>
                 <CheckCircle2 size={18} />
                 <span>{loading ? 'Processing...' : 'Confirm / Process'}</span>
               </button>
             )}
 
-            {transfer.status === 'DONE' && (
+            {transfer.statusValue === 'done' && (
               <div className="detail-note success-note">This transfer has already been completed and no further action is required.</div>
             )}
 
-            {transfer.status === 'CANCELED' && (
+            {transfer.statusValue === 'canceled' && (
               <div className="detail-note">This transfer was canceled and cannot be processed further.</div>
             )}
 

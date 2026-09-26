@@ -5,11 +5,11 @@ import StatusBadge from '../../components/StatusBadge';
 const DeliveryDetails = ({ delivery, onPick, onPack, onValidate, onCancel, loading = false }) => {
   if (!delivery) return null;
 
-  const isDraft = delivery.status === 'DRAFT';
-  const isReady = delivery.status === 'READY';
-  const isPicked = delivery.status === 'PICKED';
-  const isPacked = delivery.status === 'PACKED';
-  const isDone = delivery.status === 'DONE';
+  const isDraft = delivery.statusValue === 'draft';
+  const isReady = delivery.statusValue === 'ready';
+  const isPicked = delivery.statusValue === 'waiting';
+  const isPacked = delivery.statusValue === 'ready';
+  const isDone = delivery.statusValue === 'done';
 
   return (
     <div className="modal-overlay" onClick={onCancel ? onCancel : undefined}>
@@ -21,16 +21,16 @@ const DeliveryDetails = ({ delivery, onPick, onPack, onValidate, onCancel, loadi
           </div>
           <StatusBadge
             type={
-              delivery.status === 'DONE'
+              delivery.statusValue === 'done'
                 ? 'success'
-                : delivery.status === 'CANCELED'
+                : delivery.statusValue === 'canceled'
                   ? 'danger'
-                  : delivery.status === 'PACKED'
+                  : delivery.statusValue === 'ready'
                     ? 'info'
                     : 'default'
             }
           >
-            {delivery.status}
+            {delivery.statusLabel}
           </StatusBadge>
         </div>
 
@@ -46,7 +46,7 @@ const DeliveryDetails = ({ delivery, onPick, onPack, onValidate, onCancel, loadi
             </div>
             <div className="detail-group">
               <span className="detail-label">Source Location</span>
-              <strong>{delivery.sourceLocation}</strong>
+              <strong>{delivery.location}</strong>
             </div>
             <div className="detail-group">
               <span className="detail-label">Created By</span>
@@ -69,15 +69,15 @@ const DeliveryDetails = ({ delivery, onPick, onPack, onValidate, onCancel, loadi
                 <tr>
                   <th>Product</th>
                   <th>Quantity</th>
-                  <th>Available</th>
+                  <th>Notes</th>
                 </tr>
               </thead>
               <tbody>
-                {(delivery.products || []).map((item, index) => (
-                  <tr key={`${item.product}-${index}`}>
-                    <td>{item.product}</td>
+                {(delivery.items || []).map((item, index) => (
+                  <tr key={`${item.productName}-${index}`}>
+                    <td>{item.productName}</td>
                     <td className="font-mono">{item.quantity}</td>
-                    <td className="font-mono">{item.availableStock || 0}</td>
+                    <td>{item.notes || '}</td>
                   </tr>
                 ))}
               </tbody>
@@ -123,7 +123,7 @@ const DeliveryDetails = ({ delivery, onPick, onPack, onValidate, onCancel, loadi
               <div className="detail-note success-note">This delivery has already been validated and completed.</div>
             )}
 
-            {delivery.status === 'CANCELED' && (
+            {delivery.statusValue === 'canceled' && (
               <div className="detail-note">This delivery was canceled and cannot be processed further.</div>
             )}
           </div>
