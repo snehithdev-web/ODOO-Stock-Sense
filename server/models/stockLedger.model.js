@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { OPERATION_TYPE, OPERATION_TYPE_VALUES } from '../utils/enums.js';
+import { OPERATION_TYPE_VALUES } from '../utils/enums.js';
 
 /**
  * StockLedger is the append only record of every stock movement and the source
@@ -111,6 +111,25 @@ const stockLedgerSchema = new mongoose.Schema(
     occurredAt: {
       type: Date,
       default: Date.now
+    },
+    /**
+     * Deterministic identity for one movement, used to make posting idempotent.
+     *
+     * MongoDB is running standalone here, so multi document transactions are
+     * unavailable and a posting that dies half way through cannot be rolled
+     * back. Instead every entry is keyed by what it is: which document produced
+     * it, and which balance stream (product, warehouse, location) it moves. A
+     * unique index on this field means a retry of the same posting collides and
+     * is recognised as already applied, instead of double counting the stock.
+     *
+     * Shape: "<OperationModel>:<operationId>:<productId>:<warehouseId>:<LOCATION>"
+     */
+    postingKey: {
+      type: String,
+      required: [true, 'Ledger entry must record a posting key'],
+      uppercase: true,
+      trim: true,
+      maxlength: 160
     }
   },
   {
@@ -129,6 +148,19 @@ stockLedgerSchema.index({ occurredAt: -1 });
 
 // Trace every entry produced by a single document.
 stockLedgerSchema.index({ operationModel: 1, operation: 1 });
+
+// The idempotency guarantee for posting. Without this a retried posting would
+// append the same movement twice and permanently inflate stock.
+stockLedgerSchema.index({ postingKey: 1 }, { unique: true });
+
+/**
+ * True when this entry has already been written by an earlier attempt at
+ * posting the same document. Used to tell a genuine duplicate posting from a
+ * retry after a partial failure.
+ */
+stockLedgerSchema.statics.findByPostingKey = function findByPostingKey(postingKey) {
+  return this.exists({ postingKey: String(postingKey).toUpperCase() });
+};
 
 /**
  * Current balance for one product in one location, read from the most recent

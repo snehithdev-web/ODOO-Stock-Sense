@@ -553,6 +553,137 @@ body {
 
 .search-input { flex: 2; max-width: 400px; }
 .filter-input { flex: 1; max-width: 200px; }
+.filter-input-narrow { max-width: 120px; }
+
+/* A toolbar that has to hold many controls wraps onto extra lines instead of
+   squeezing every dropdown until the labels are unreadable. */
+.toolbar-card-stack { align-items: flex-start; }
+
+.toolbar-left-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 0.65rem;
+  align-items: center;
+}
+
+/* Money inputs carry a $ prefix instead of an icon, so the padding has to be
+   narrower than the icon variant. */
+.input-prefix {
+  position: absolute;
+  left: 0.85rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  font-size: 0.9rem;
+}
+
+.form-control-prefixed {
+  padding-left: 1.9rem;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.form-control-prefixed::-webkit-outer-spin-button,
+.form-control-prefixed::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Active filter summary */
+.filter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.35rem 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+  font-size: 0.8rem;
+}
+
+.filter-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.filter-chip-remove:hover {
+  opacity: 1;
+  background: rgba(99, 102, 241, 0.3);
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0.35rem;
+  font-family: inherit;
+}
+
+.btn-link:hover { text-decoration: underline; }
+
+.result-count {
+  font-size: 0.825rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Stock column: quantity, unit and the derived state side by side */
+.stock-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+/* Pagination */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.pagination-summary {
+  font-size: 0.825rem;
+  color: var(--text-muted);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 
 /* Table Styling */
 .table-responsive {
@@ -1277,7 +1408,9 @@ body {
   .nav-container { flex-direction: column; gap: 0.75rem; }
   .toolbar-card { flex-direction: column; }
   .toolbar-left { flex-direction: column; width: 100%; }
-  .search-input, .filter-input { max-width: 100%; width: 100%; }
+  .search-input, .filter-input, .filter-input-narrow { max-width: 100%; width: 100%; }
+  .filter-summary, .pagination-bar { justify-content: center; }
+  .result-count { text-align: center; width: 100%; }
   .form-grid { grid-template-columns: 1fr; }
   .col-span-2 { grid-column: span 1; }
   .details-grid { grid-template-columns: 1fr; }

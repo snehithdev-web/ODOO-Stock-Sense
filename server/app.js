@@ -4,6 +4,13 @@ import healthRoutes from './routes/health.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import productRoutes from './routes/product.routes.js';
 import warehouseRoutes from './routes/warehouse.routes.js';
+import stockRoutes from './routes/stock.routes.js';
+import {
+  receiptRouter,
+  deliveryRouter,
+  transferRouter,
+  adjustmentRouter
+} from './routes/operation.routes.js';
 import { notFoundHandler } from './middleware/notFound.middleware.js';
 import { errorHandler } from './middleware/error.middleware.js';
 
@@ -55,6 +62,11 @@ app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/warehouses', warehouseRoutes);
+app.use('/api/stock', stockRoutes);
+app.use('/api/receipts', receiptRouter);
+app.use('/api/deliveries', deliveryRouter);
+app.use('/api/transfers', transferRouter);
+app.use('/api/adjustments', adjustmentRouter);
 
 // 404 Not Found Middleware
 app.use(notFoundHandler);

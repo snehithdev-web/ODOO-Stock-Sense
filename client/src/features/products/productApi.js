@@ -5,6 +5,15 @@ export const fetchProductsApi = async (params = {}) => {
   return response.data;
 };
 
+/**
+ * Distinct categories, locations, units and stock counts, so the filter controls
+ * are built from real catalog values instead of whatever page happened to load.
+ */
+export const fetchProductFilterOptionsApi = async () => {
+  const response = await api.get('/products/filter-options');
+  return response.data;
+};
+
 export const fetchProductByIdApi = async (id) => {
   const response = await api.get(`/products/${id}`);
   return response.data;

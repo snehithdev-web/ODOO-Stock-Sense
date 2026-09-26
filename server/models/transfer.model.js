@@ -54,13 +54,21 @@ transferSchema.index({ 'to.warehouse': 1, 'to.location': 1, documentDate: -1 });
 // A transfer to the exact same place is a mistake, not a no-op worth storing.
 // Comparing warehouse and location together still allows Rack A -> Rack B within
 // one warehouse, which the spec explicitly calls for.
+//
+// Reported with invalidate() rather than a thrown Error, so it surfaces as a
+// mongoose ValidationError and the error middleware maps it to a 400. A plain
+// Error here has no name the middleware recognises, and the client mistake would
+// be reported as a 500.
 transferSchema.pre('validate', function checkNotSelfTransfer(next) {
   const sameWarehouse =
     this.from?.warehouse?.toString() === this.to?.warehouse?.toString();
   const sameLocation = this.from?.location === this.to?.location;
 
   if (sameWarehouse && sameLocation) {
-    return next(new Error('Transfer source and destination must be different locations'));
+    this.invalidate(
+      'to',
+      'Transfer source and destination must be different locations'
+    );
   }
 
   next();

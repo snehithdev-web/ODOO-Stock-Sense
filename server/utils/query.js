@@ -3,6 +3,8 @@
  * envelope so the two concerns do not get mixed together.
  */
 
+import ApiError from './ApiError.js';
+
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
@@ -50,3 +52,59 @@ export const parseBooleanFlag = (value) => {
   if (value === undefined || value === null || value === '') return undefined;
   return ['true', '1', 'yes'].includes(String(value).toLowerCase());
 };
+
+/**
+ * Reads a query param that must be one of a known set of values.
+ *
+ * An unrecognised value is rejected with a 400 rather than quietly ignored: a
+ * filter that is silently dropped returns a full unfiltered result set, which
+ * reads as "no matches for that filter" and is worse than an explicit error.
+ * Returns undefined when the param is absent or empty, so callers can use a
+ * plain truthiness check.
+ */
+export const parseEnumParam = (value, allowed, label) => {
+  if (value === undefined || value === null || value === '') return undefined;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!allowed.includes(normalized)) {
+    throw ApiError.badRequest(
+      `Invalid ${label} '${value}'. Expected one of: ${allowed.join(', ')}.`
+    );
+  }
+
+  return normalized;
+};
+
+/**
+ * Reads a numeric query param such as minPrice, clamped to a lower bound.
+ *
+ * Unlike Number.parseInt this rejects "12abc" and "abc" outright instead of
+ * quietly reading them as 12 and 0, so a malformed range cannot widen a filter
+ * into something the caller did not ask for.
+ */
+export const parseNonNegativeNumber = (value, label, { min = 0 } = {}) => {
+  if (value === undefined || value === null || value === '') return undefined;
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw ApiError.badRequest(`${label} must be a number.`);
+  }
+
+  if (parsed < min) {
+    throw ApiError.badRequest(`${label} cannot be less than ${min}.`);
+  }
+
+  return parsed;
+};
+
+/**
+ * Case-insensitive exact match on a string field.
+ *
+ * Anchored so a filter value can never behave as a pattern, and routed through
+ * escapeRegex so the value is matched literally even if it contains regex
+ * metacharacters.
+ */
+export const exactMatch = (value) => ({
+  $regex: `^${escapeRegex(String(value).trim())}$`,
+  $options: 'i',
+});

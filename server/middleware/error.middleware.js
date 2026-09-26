@@ -28,7 +28,10 @@ const resolveErrorStatus = (err, res) => {
   return res.statusCode === 200 ? 500 : res.statusCode;
 };
 
-export const errorHandler = (err, req, res, next) => {
+// Express identifies an error handler by its arity, so the unused fourth
+// argument has to stay even though nothing calls it. The underscore keeps the
+// linter from reporting it.
+export const errorHandler = (err, req, res, _next) => {
   const statusCode = resolveErrorStatus(err, res);
 
   // Anything at 5xx is our fault, so it gets logged in full on the server.

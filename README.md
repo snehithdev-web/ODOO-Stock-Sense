@@ -238,7 +238,8 @@ All responses share one envelope, so a client can branch on `status` alone:
 > transport. `verify-otp` allows 5 attempts, after which the code is discarded.
 
 ### Product Master Data Management (Protected)
-- `GET /api/products` — List products (search by SKU/name/category, category filter, `?page` & `?limit`, max 100)
+- `GET /api/products` — List products with search & smart filters
+- `GET /api/products/filter-options` — Distinct categories, locations and units, plus stock bucket counts, for populating filter controls
 - `GET /api/products/:id` — Get product details by ID
 - `POST /api/products` — Create new product (Unique SKU check, Manager role)
 - `PUT /api/products/:id` — Update existing product (Manager role)
@@ -246,15 +247,124 @@ All responses share one envelope, so a client can branch on `status` alone:
 
 > The stock field is named `quantity` (not `stockQuantity`) and may not be negative.
 
+**`GET /api/products` query parameters**
+
+| Param | Values | Notes |
+|---|---|---|
+| `search` | free text | Matches name, SKU, category and description. Case-insensitive substring, input is regex-escaped |
+| `sku` | free text | SKU-only search, so a code lookup is not diluted by a matching product name. Substring, so `STL` finds `STL-001` |
+| `category` | free text | Exact match, case-insensitive and anchored |
+| `location` | free text | Exact match, case-insensitive and anchored |
+| `unit` | free text | Exact match, case-insensitive and anchored |
+| `stockStatus` | `in_stock` \| `low_stock` \| `out_of_stock` | Compared against each product's own `reorderLevel` |
+| `minPrice` / `maxPrice` | number | Inclusive unit price bounds |
+| `sort` | `newest` (default), `oldest`, `name_asc`, `name_desc`, `sku_asc`, `sku_desc`, `quantity_asc`, `quantity_desc`, `price_asc`, `price_desc` | Whitelisted; each ends in a stable tiebreaker so paging cannot repeat or skip a row |
+| `page` / `limit` | number | `limit` defaults to 20 and is capped at 100 |
+
+An unrecognised `sort`, `stockStatus` or a non-numeric price returns **400** rather than being dropped. A filter that is silently ignored returns the full unfiltered list, which reads as "nothing matched that filter" and is worse than an explicit error.
+
+`out_of_stock` is `quantity <= 0`; `low_stock` is `0 < quantity <= reorderLevel`; `in_stock` is `quantity > reorderLevel`. The three are disjoint, so the low-stock and out-of-stock KPI counts add up correctly.
+
+The catalog page keeps its whole filter state in the query string, so a filtered view is shareable and survives a reload.
+
 ### Warehouses (Protected)
 - `GET /api/warehouses` — List warehouses with their locations (any role)
 - `GET /api/warehouses/:id` — Get a single warehouse (any role)
 - `POST /api/warehouses` — Create a warehouse (Manager role)
 - `POST /api/warehouses/:id/locations` — Add a location/rack to a warehouse (Manager role)
 
+### Operational Documents (Protected)
+
+Receipts, deliveries, transfers and adjustments share one lifecycle, so the four
+route groups below expose the same endpoints. `create`/`update`/`delete` require
+`inventory_manager`; receipts, deliveries and transfers also accept
+`warehouse_staff`, while adjustments (which change the book record) are
+manager-only.
+
+| Endpoint | Receipts | Deliveries | Transfers | Adjustments | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `GET /` | ✓ | ✓ | ✓ | ✓ | List, `?status=`, `?search=`, `?warehouse=`, paginated |
+| `GET /:id` | ✓ | ✓ | ✓ | ✓ | One document |
+| `POST /` | ✓ | ✓ | ✓ | ✓ | Create as a **draft** (never moves stock) |
+| `PUT /:id` | ✓ | ✓ | ✓ | ✓ | Replace a draft's content |
+| `PATCH /:id` | ✓ | ✓ | ✓ | ✓ | Step status, body `{ "status": "ready" }` |
+| `POST /:id/post` | ✓ | ✓ | ✓ | ✓ | Apply to stock (requires `ready`) |
+| `POST /:id/cancel` | ✓ | ✓ | ✓ | ✓ | Cancel, with `{ "reason" }` |
+| `DELETE /:id` | ✓ | ✓ | ✓ | ✓ | Delete a document that was never posted |
+| `GET /:id/stock` | ✓ | ✓ | ✓ | ✓ | On-hand balance at each line's location |
+
+Request bodies differ per type:
+
+```jsonc
+// POST /api/receipts
+{ "supplier": { "name": "ABC Steel", "code": "ABC" },
+  "warehouse": "<id>", "location": "MAIN-STORE",
+  "items": [{ "product": "<id>", "quantity": 100, "notes": "" }] }
+
+// POST /api/deliveries  — same, with "customer" instead of "supplier"
+{ "customer": { "name": "BuildWell" },
+  "warehouse": "<id>", "location": "MAIN-STORE",
+  "items": [{ "product": "<id>", "quantity": 30 }] }
+
+// POST /api/transfers  — two places, one quantity
+{ "from": { "warehouse": "<id>",  "location": "MAIN-STORE" },
+  "to":   { "warehouse": "<id>",  "location": "PROD-RACK" },
+  "items": [{ "product": "<id>", "quantity": 20 }] }
+
+// POST /api/adjustments  — send the count only
+{ "warehouse": "<id>", "location": "MAIN-STORE",
+  "reason": "damage",   // damage | expiry | shrinkage | recount | theft_loss | other
+  "items": [{ "product": "<id>", "countedQuantity": 45 }] }
+```
+
+A document is validated and applied **as a whole**: if any line would drive a
+balance negative, the entire document is rejected with `409` and nothing is
+written. `recordedQuantity` on an adjustment is taken from the ledger rather than
+the request body, and is re-read at post time, so a count always lands on the
+counted number even if stock moved while the document sat in draft.
+
+### Stock Ledger (Protected)
+- `GET /api/stock/movements` — Move History; `?operationType=`, `?product=`, `?warehouse=`, `?location=`, `?operationRef=`, `?fromDate=`, `?toDate=`
+- `GET /api/stock/product/:productId` — Where a product is held, per warehouse and location
+- `GET /api/stock/product/:productId/warehouse/:warehouseId/location/:location` — Balance plus every entry that produced it
+- `GET /api/stock/indexes` — Confirms the unique `postingKey` index is present
+- `POST /api/stock/reconcile` — Rebuild `Product.quantity` from the ledger (Manager role)
+
 ---
 
-## 🎯 Current Scope — Hour 1 & Hour 2 (COMPLETED)
+## 🧠 How Stock Is Tracked
+
+The **ledger is the source of truth**; `Product.quantity` is a denormalised cache
+of it, so the catalog list and the low-stock filter stay a single indexed query.
+`POST /api/stock/reconcile` rebuilds the cache from the ledger at any time.
+
+Balances are per `(product, warehouse, location)`, so a receipt into Hyderabad's
+Main Store and a delivery from Mumbai's Rack A are tracked separately, and a
+product's total is the sum of the latest balance of each of its streams.
+
+### Why posting is idempotent
+
+MongoDB is running as a **standalone server**, so multi-document transactions are
+unavailable. Posting therefore follows ledger-first ordering instead of wrapping
+its writes in a transaction:
+
+1. Validate the document against current balances; reject it as a unit if it would
+   go negative.
+2. Write the ledger entries. Each carries a deterministic `postingKey`
+   (`MODEL:id:product:warehouse:location`) with a **unique index**, so a retry
+   after a crash collides and is recognised as already applied rather than
+   double-counting stock.
+3. Mark the document `done`.
+4. Rebuild the product cache from the ledger.
+
+Steps 3 and 4 are derived state, so a crash between them leaves stale cache rather
+than wrong stock, and re-posting or reconciling repairs it. Posting refuses to run
+if the unique index is missing, instead of silently risking a double count.
+
+---
+
+## 🎯 Current Scope
+
 - [x] Express + Mongoose connection foundation
 - [x] Health check `/api/health`
 - [x] User Registration & Login with bcrypt password hashing
@@ -262,15 +372,34 @@ All responses share one envelope, so a client can branch on `status` alone:
 - [x] Forgot Password + OTP generation + verification + password reset
 - [x] Product model with SKU, Name, Category, Unit, `quantity`, Reorder Level, Price, Location
 - [x] Product CRUD APIs with SKU uniqueness enforcement
+- [x] SKU search & smart filters, with a facet endpoint for the filter dropdowns
 - [x] Warehouse & location model with role-protected create endpoints
+- [x] Seeded warehouses: Hyderabad (`WH-HYD`) and Mumbai (`WH-MUM`), plus `WH-MAIN`
+- [x] Stock ledger with per-location balances and a running `balanceAfter`
+- [x] Idempotent, transaction-free posting engine
+- [x] Receipts, deliveries, transfers and adjustments (APIs)
+- [x] Move History and stock-by-location reads
 - [x] React + Vite UI with Protected Routes, Auth Context, Product Catalog, Search & Filter Modals
-- [x] ESLint (flat config) wired to `npm run lint`
+- [x] ESLint (flat config) for both client and server
+
+### Seeding and indexes
+
+Two repeatable scripts, safe to re-run against a populated database:
+
+```bash
+cd server
+npm run seed:locations   # creates WH-HYD / WH-MUM and their locations
+npm run seed:indexes     # creates the indexes posting depends on
+```
+
+`seed:indexes` is required before the first posting: Mongoose only builds indexes
+while `autoIndex` is on, which is normally off in production, and the ledger's
+unique `postingKey` index is what makes posting safe to retry.
 
 ---
 
-## 🔮 Future Feature Roadmap (Hour 3+)
-- **Hour 3**: Receipts (Incoming stock entries & automated stock quantity increase)
-- **Hour 4**: Deliveries (Outgoing customer orders & automated stock quantity deduction)
-- **Hour 5**: Internal Transfers (Inter-warehouse stock location movement)
-- **Hour 6**: Inventory Adjustments & Stock Ledger audit history
-- **Hour 7**: Real-time Dashboard KPIs, Stock Valuation & Low-Stock Alerts
+## 🔮 Not Built Yet
+- Frontend screens for receipts, deliveries, transfers, adjustments, move history
+  and the dashboard (the APIs exist; the UI does not)
+- Dashboard KPIs, stock valuation and low-stock alerts
+- Supplier and customer entities — currently captured inline on each document

@@ -14,6 +14,18 @@ export const getProducts = async (req, res, next) => {
   }
 };
 
+export const getProductFilterOptions = async (req, res, next) => {
+  try {
+    const data = await productService.getProductFilterOptions();
+    return sendSuccess(res, {
+      message: 'Product filter options retrieved successfully',
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getProduct = async (req, res, next) => {
   try {
     const product = await productService.getProductById(req.params.id);
