@@ -17,6 +17,7 @@ import AdjustmentsPage from './pages/AdjustmentsPage';
 import MoveHistoryPage from './pages/MoveHistoryPage';
 import DashboardPage from './pages/DashboardPage';
 import WarehouseSettingsPage from './pages/WarehouseSettingsPage';
+import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function App() {
@@ -101,6 +102,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <WarehouseSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
               </ProtectedRoute>
             }
           />

@@ -24,7 +24,7 @@ const LoginForm = () => {
     try {
       setLoading(true);
       await login({ email, password });
-      navigate('/products');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Login failed. Invalid credentials.');
     } finally {

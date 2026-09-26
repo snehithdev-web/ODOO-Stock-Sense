@@ -26,7 +26,7 @@ const HomePage = () => {
           <div className="hero-actions">
             <Link to={isAuthenticated ? '/dashboard' : '/products'} className="btn btn-primary btn-lg">
               <Package size={20} />
-              <span>{isAuthenticated ? 'Open Dashboard' : 'Explore Products'}</span>
+              <span>{isAuthenticated ? 'Open Dashboard' : 'Explore Warehouse'}</span>
               <ArrowRight size={18} />
             </Link>
           </div>
