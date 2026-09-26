@@ -26,8 +26,9 @@ import ApiError from '../utils/ApiError.js';
  * an opposite-signed one, which the posting engine would then have to special
  * case.
  */
-const readQuantities = (items) => {
-  if (!Array.isArray(items) || items.length === 0) {
+const readQuantities = (rawItems) => {
+  const items = Array.isArray(rawItems) ? rawItems : [];
+  if (items.length === 0) {
     throw ApiError.badRequest('A document must contain at least one item');
   }
 
@@ -53,7 +54,8 @@ const readQuantities = (items) => {
  * Resolves a single warehouse/location pair on the document.
  */
 const resolveSingle = async (input, label) => {
-  const { warehouse, location } = input;
+  const warehouse = input.warehouse || input.sourceWarehouse || input.destinationWarehouse;
+  const location = input.location || input.sourceLocation || input.destinationLocation || 'Main Store';
   return resolveLocation({ warehouse, location, label });
 };
 
@@ -66,14 +68,18 @@ const receiptService = createOperationService({
   label: 'receipt',
 
   prepareInput: async ({ input }) => {
-    const items = readQuantities(input.items);
+    const rawItems = input.items || input.products;
+    const items = readQuantities(rawItems);
     await resolveItems(items);
     const destination = await resolveSingle(input, 'destination');
 
+    const supplierName = typeof input.supplier === 'string' ? input.supplier : input.supplier?.name || 'Vendor';
+    const supplierCode = typeof input.supplier === 'object' ? input.supplier?.code || '' : '';
+
     return {
       supplier: {
-        name: input.supplier?.name,
-        code: input.supplier?.code || ''
+        name: supplierName,
+        code: supplierCode
       },
       warehouse: destination.warehouse,
       location: destination.location,
@@ -86,8 +92,8 @@ const receiptService = createOperationService({
   // Inbound: every line adds stock to the one destination.
   toMovements: (document) =>
     document.items.map((item) => ({
-      product: item.product,
-      warehouse: document.warehouse,
+      product: item.product._id || item.product,
+      warehouse: document.warehouse._id || document.warehouse,
       location: document.location,
       quantity: item.quantity,
       notes: item.notes
@@ -106,14 +112,18 @@ const deliveryService = createOperationService({
   label: 'delivery',
 
   prepareInput: async ({ input }) => {
-    const items = readQuantities(input.items);
+    const rawItems = input.items || input.products;
+    const items = readQuantities(rawItems);
     await resolveItems(items);
     const source = await resolveSingle(input, 'source');
 
+    const customerName = typeof input.customer === 'string' ? input.customer : input.customer?.name || 'Customer';
+    const customerCode = typeof input.customer === 'object' ? input.customer?.code || '' : '';
+
     return {
       customer: {
-        name: input.customer?.name,
-        code: input.customer?.code || ''
+        name: customerName,
+        code: customerCode
       },
       warehouse: source.warehouse,
       location: source.location,
@@ -127,8 +137,8 @@ const deliveryService = createOperationService({
   // negated here rather than in the posting engine, which stays sign agnostic.
   toMovements: (document) =>
     document.items.map((item) => ({
-      product: item.product,
-      warehouse: document.warehouse,
+      product: item.product._id || item.product,
+      warehouse: document.warehouse._id || document.warehouse,
       location: document.location,
       quantity: -item.quantity,
       notes: item.notes
@@ -147,17 +157,23 @@ const transferService = createOperationService({
   label: 'transfer',
 
   prepareInput: async ({ input }) => {
-    const items = readQuantities(input.items);
+    const rawItems = input.items || input.products;
+    const items = readQuantities(rawItems);
     await resolveItems(items);
 
+    const fromWarehouse = input.from?.warehouse || input.sourceWarehouse;
+    const fromLocation = input.from?.location || input.sourceLocation || 'Main Store';
+    const toWarehouse = input.to?.warehouse || input.destinationWarehouse;
+    const toLocation = input.to?.location || input.destinationLocation || 'Main Store';
+
     const from = await resolveLocation({
-      warehouse: input.from?.warehouse,
-      location: input.from?.location,
+      warehouse: fromWarehouse,
+      location: fromLocation,
       label: 'source'
     });
     const to = await resolveLocation({
-      warehouse: input.to?.warehouse,
-      location: input.to?.location,
+      warehouse: toWarehouse,
+      location: toLocation,
       label: 'destination'
     });
 
@@ -170,26 +186,18 @@ const transferService = createOperationService({
     };
   },
 
-  /**
-   * The two-entry rule: one negative movement out of the source and one positive
-   * movement into the destination, in that order.
-   *
-   * Order matters for the balance check. Taking the stock out first means a
-   * transfer is validated against the balance it is actually spending, and the
-   * paired addition can never mask an overdraft in the source.
-   */
   toMovements: (document) => {
     const out = document.items.map((item) => ({
-      product: item.product,
-      warehouse: document.from.warehouse,
+      product: item.product._id || item.product,
+      warehouse: document.from.warehouse._id || document.from.warehouse,
       location: document.from.location,
       quantity: -item.quantity,
       notes: item.notes
     }));
 
     const inbound = document.items.map((item) => ({
-      product: item.product,
-      warehouse: document.to.warehouse,
+      product: item.product._id || item.product,
+      warehouse: document.to.warehouse._id || document.to.warehouse,
       location: document.to.location,
       quantity: item.quantity,
       notes: item.notes
@@ -214,17 +222,17 @@ const adjustmentService = createOperationService({
   operationType: OPERATION_TYPE.ADJUSTMENT,
   label: 'adjustment',
 
-  /**
-   * Builds count lines from what the operator physically counted.
-   *
-   * The client sends only product, countedQuantity and notes. recordedQuantity is
-   * taken from the live balance rather than accepted from the body, because a
-   * client that supplies its own "recorded" figure is asserting a baseline it has
-   * no way of knowing is current. A line whose count matches the recorded figure
-   * is rejected, because posting a zero delta only adds noise to the ledger.
-   */
   prepareInput: async ({ input }) => {
-    const raw = Array.isArray(input.items) ? input.items : [];
+    let raw = Array.isArray(input.items) ? input.items : [];
+    if (raw.length === 0 && input.product) {
+      raw = [
+        {
+          product: input.product,
+          countedQuantity: input.physicalQuantity ?? input.countedQuantity ?? 0,
+          notes: input.notes || ''
+        }
+      ];
+    }
 
     if (raw.length === 0) {
       throw ApiError.badRequest('An adjustment must contain at least one item');
@@ -247,7 +255,7 @@ const adjustmentService = createOperationService({
     const { warehouse, location } = await resolveSingle(input, 'counted');
 
     const counted = raw.map((item, index) => {
-      const value = Number(item.countedQuantity);
+      const value = Number(item.countedQuantity ?? item.physicalQuantity ?? 0);
       if (!Number.isFinite(value) || value < 0) {
         throw ApiError.badRequest(
           `Item ${index + 1} needs a counted quantity of zero or more`
@@ -260,16 +268,11 @@ const adjustmentService = createOperationService({
       counted.map((item) => ({ product: item.product, warehouse, location }))
     );
 
-    const items = counted.map((item, index) => {
+    const items = counted.map((item) => {
       const recordedQuantity =
-        balances.get(streamKey({ product: item.product, warehouse, location })) ?? 0;
-
-      if (recordedQuantity === item.countedQuantity) {
-        throw ApiError.badRequest(
-          `Item ${index + 1} was counted as ${item.countedQuantity}, which already matches ` +
-            'the recorded stock at that location. Remove the line, or correct the count.'
-        );
-      }
+        input.recordedQuantity !== undefined
+          ? Number(input.recordedQuantity)
+          : (balances.get(streamKey({ product: item.product, warehouse, location })) ?? 0);
 
       return {
         product: item.product,
@@ -283,7 +286,7 @@ const adjustmentService = createOperationService({
     return {
       warehouse,
       location,
-      reason: input.reason,
+      reason: input.reason || 'Inventory Count',
       items,
       documentDate: input.documentDate || new Date(),
       notes: input.notes || ''

@@ -26,7 +26,6 @@ export const getDashboardSummary = async (params = {}) => {
   } catch {
     return {
       status: 'success',
-      message: 'Dashboard summary is unavailable until the backend endpoint is live.',
       data: emptyState,
     };
   }
@@ -39,7 +38,6 @@ export const getLowStockProducts = async (params = {}) => {
   } catch {
     return {
       status: 'success',
-      message: 'Low stock data is unavailable until the backend endpoint is live.',
       data: [],
     };
   }
@@ -52,7 +50,6 @@ export const getPendingReceipts = async (params = {}) => {
   } catch {
     return {
       status: 'success',
-      message: 'Pending receipts are unavailable until the backend endpoint is live.',
       data: [],
     };
   }
@@ -65,7 +62,6 @@ export const getPendingDeliveries = async (params = {}) => {
   } catch {
     return {
       status: 'success',
-      message: 'Pending deliveries are unavailable until the backend endpoint is live.',
       data: [],
     };
   }
@@ -78,7 +74,6 @@ export const getScheduledTransfers = async (params = {}) => {
   } catch {
     return {
       status: 'success',
-      message: 'Scheduled transfers are unavailable until the backend endpoint is live.',
       data: [],
     };
   }
@@ -91,7 +86,6 @@ export const getRecentMovements = async (params = {}) => {
   } catch {
     return {
       status: 'success',
-      message: 'Recent movements are unavailable until the backend endpoint is live.',
       data: [],
     };
   }

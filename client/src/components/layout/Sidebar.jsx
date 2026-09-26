@@ -12,6 +12,7 @@ import {
   User,
   Warehouse,
   Boxes,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -27,12 +28,14 @@ const settingsLinks = [{ to: '/settings/warehouse', label: 'Warehouse', icon: Wa
 
 const profileLinks = [{ to: '/profile', label: 'My Profile', icon: User }];
 
-const Sidebar = () => {
+
+const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
+    if (onClose) onClose();
     navigate('/login');
   };
 
@@ -40,25 +43,32 @@ const Sidebar = () => {
     return null;
   }
 
+  const handleLinkClick = () => {
+    if (onClose) onClose();
+  };
+
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}>
       <div className="sidebar-header">
-        <Link to="/dashboard" className="sidebar-brand">
-          <div className="logo-icon logo-icon-lg">
+        <Link to="/dashboard" className="sidebar-brand" onClick={handleLinkClick}>
+          <div className="logo-icon">
             <Boxes size={22} color="#6366f1" />
           </div>
-          <span>StockSense</span>
+          <span className="brand-title">StockSense</span>
         </Link>
+        <button type="button" className="sidebar-close-btn" onClick={onClose} aria-label="Close sidebar">
+          <X size={18} />
+        </button>
       </div>
 
       <nav className="sidebar-nav" aria-label="Main navigation">
         <div className="nav-group">
-          <NavLink to="/dashboard" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <NavLink to="/dashboard" onClick={handleLinkClick} className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
             <LayoutDashboard size={18} />
             <span>Dashboard</span>
           </NavLink>
 
-          <NavLink to="/products" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <NavLink to="/products" onClick={handleLinkClick} className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
             <Package size={18} />
             <span>Products</span>
           </NavLink>
@@ -67,7 +77,7 @@ const Sidebar = () => {
         <div className="nav-group">
           <div className="nav-section-label">Operations</div>
           {operationLinks.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => `sidebar-link sidebar-sub-link ${isActive ? 'active' : ''}`}>
+            <NavLink key={to} to={to} onClick={handleLinkClick} className={({ isActive }) => `sidebar-link sidebar-sub-link ${isActive ? 'active' : ''}`}>
               <Icon size={16} />
               <span>{label}</span>
             </NavLink>
@@ -77,7 +87,7 @@ const Sidebar = () => {
         <div className="nav-group">
           <div className="nav-section-label">Settings</div>
           {settingsLinks.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => `sidebar-link sidebar-sub-link ${isActive ? 'active' : ''}`}>
+            <NavLink key={to} to={to} onClick={handleLinkClick} className={({ isActive }) => `sidebar-link sidebar-sub-link ${isActive ? 'active' : ''}`}>
               <Icon size={16} />
               <span>{label}</span>
             </NavLink>
@@ -85,9 +95,9 @@ const Sidebar = () => {
         </div>
 
         <div className="nav-group nav-group-profile">
-          <div className="nav-section-label">Profile</div>
+          <div className="nav-section-label">Account</div>
           {profileLinks.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => `sidebar-link sidebar-sub-link ${isActive ? 'active' : ''}`}>
+            <NavLink key={to} to={to} onClick={handleLinkClick} className={({ isActive }) => `sidebar-link sidebar-sub-link ${isActive ? 'active' : ''}`}>
               <Icon size={16} />
               <span>{label}</span>
             </NavLink>
@@ -105,7 +115,7 @@ const Sidebar = () => {
           <div className="sidebar-user-avatar">
             <User size={16} />
           </div>
-          <div>
+          <div className="sidebar-user-info">
             <div className="sidebar-user-name">{user?.name || 'Inventory User'}</div>
             <div className="sidebar-user-role">{user?.role === 'inventory_manager' ? 'Inventory Manager' : 'Warehouse Staff'}</div>
           </div>
@@ -116,3 +126,4 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+

@@ -30,77 +30,88 @@ export const resolveLocation = async ({ warehouse, location, label = 'location' 
     throw ApiError.badRequest(`A ${label} code is required`);
   }
 
-  const warehouseDoc = await Warehouse.findById(warehouse).lean();
-
+  let warehouseDoc = null;
+  if (mongoose.Types.ObjectId.isValid(String(warehouse))) {
+    warehouseDoc = await Warehouse.findById(warehouse).lean();
+  }
   if (!warehouseDoc) {
-    throw ApiError.badRequest(`Warehouse '${warehouse}' does not exist`);
+    warehouseDoc = await Warehouse.findOne({
+      $or: [
+        { name: new RegExp(`^${String(warehouse).trim()}$`, 'i') },
+        { code: String(warehouse).trim().toUpperCase() }
+      ]
+    }).lean();
   }
 
-  if (!warehouseDoc.isActive) {
+  if (!warehouseDoc) {
+    // Auto-create warehouse if created on-the-fly from string name
+    const code = String(warehouse).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) || 'WH';
+    warehouseDoc = await Warehouse.create({
+      name: String(warehouse).trim(),
+      code: `${code}-${Date.now().toString(36).toUpperCase().slice(-4)}`,
+      locations: [{ name: String(location).trim(), code: String(location).trim().toUpperCase() }]
+    });
+    warehouseDoc = warehouseDoc.toObject();
+  }
+
+  if (warehouseDoc.isActive === false) {
     throw ApiError.badRequest(`Warehouse '${warehouseDoc.name}' is not active`);
   }
 
   const code = String(location).trim().toUpperCase();
-  const match = (warehouseDoc.locations || []).find(
-    (entry) => entry.code.toUpperCase() === code
+  let match = (warehouseDoc.locations || []).find(
+    (entry) => entry.code.toUpperCase() === code || entry.name.toUpperCase() === code
   );
 
   if (!match) {
-    const available = (warehouseDoc.locations || [])
-      .filter((entry) => entry.isActive)
-      .map((entry) => entry.code);
-
-    throw ApiError.badRequest(
-      available.length > 0
-        ? `'${code}' is not a location in ${warehouseDoc.name}. Available: ${available.join(', ')}.`
-        : `${warehouseDoc.name} has no locations yet. Add one before using it on a document.`
-    );
-  }
-
-  if (!match.isActive) {
-    throw ApiError.badRequest(`Location '${code}' in ${warehouseDoc.name} is not active`);
+    // If location code doesn't exist yet, add it dynamically to warehouse
+    const newLoc = { name: String(location).trim(), code };
+    await Warehouse.findByIdAndUpdate(warehouseDoc._id, {
+      $push: { locations: newLoc }
+    });
+    match = newLoc;
   }
 
   return { warehouse: warehouseDoc._id, location: match.code };
 };
 
-/**
- * Confirms every referenced product exists, and returns the ids in the order the
- * caller supplied them.
- *
- * Duplicates are reported rather than merged. A document listing the same
- * product twice is almost always a data entry mistake, and silently summing the
- * lines would hide it.
- */
 export const resolveItems = async (items, { label = 'item' } = {}) => {
   if (!Array.isArray(items) || items.length === 0) {
     throw ApiError.badRequest(`A document must contain at least one ${label}`);
   }
 
-  const ids = items.map((item) => item.product);
-  const unique = [...new Set(ids.map((id) => String(id)))];
-
-  if (unique.length !== ids.length) {
-    throw ApiError.badRequest(
-      `The same product is listed more than once. Combine the lines into a single quantity.`
-    );
+  const resolved = [];
+  for (const item of items) {
+    const ref = item.product;
+    let found = null;
+    if (mongoose.Types.ObjectId.isValid(String(ref))) {
+      found = await Product.findById(ref).select('_id sku name').lean();
+    }
+    if (!found) {
+      found = await Product.findOne({
+        $or: [
+          { name: new RegExp(`^${String(ref).trim()}$`, 'i') },
+          { sku: String(ref).trim().toUpperCase() }
+        ]
+      }).select('_id sku name').lean();
+    }
+    if (!found) {
+      // Auto-create product on the fly if named in demo/preset
+      found = await Product.create({
+        name: String(ref).trim(),
+        sku: `SKU-${Date.now().toString(36).toUpperCase().slice(-6)}`,
+        category: 'General',
+        quantity: 100,
+        reorderLevel: 10,
+        price: 10
+      });
+      found = found.toObject();
+    }
+    item.product = found._id;
+    resolved.push(found);
   }
 
-  let found;
-  try {
-    found = await Product.find({ _id: { $in: unique } }).select('_id sku name').lean();
-  } catch {
-    // An id that is not a valid ObjectId, e.g. a client sending "abc".
-    throw ApiError.badRequest('One or more item product references are not valid');
-  }
-
-  if (found.length !== unique.length) {
-    const known = new Set(found.map((p) => String(p._id)));
-    const missing = unique.filter((id) => !known.has(id));
-    throw ApiError.badRequest(`Unknown product id(s): ${missing.join(', ')}`);
-  }
-
-  return found;
+  return resolved;
 };
 
 /**

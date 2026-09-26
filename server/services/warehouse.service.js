@@ -77,3 +77,35 @@ export const addLocationToWarehouse = async (warehouseId, { name, code }) => {
 
   return warehouse;
 };
+
+export const updateWarehouse = async (warehouseId, { name, code, address, locations, isActive }) => {
+  const warehouse = await getWarehouseById(warehouseId);
+
+  if (name !== undefined) warehouse.name = name;
+  if (code !== undefined) warehouse.code = code;
+  if (address !== undefined) warehouse.address = address;
+  if (isActive !== undefined) warehouse.isActive = isActive;
+  if (Array.isArray(locations)) warehouse.locations = locations;
+
+  await warehouse.save();
+  return warehouse;
+};
+
+export const updateLocationInWarehouse = async (warehouseId, locationId, { name, code, isActive }) => {
+  const warehouse = await getWarehouseById(warehouseId);
+
+  const loc = (warehouse.locations || []).find(
+    (l) => l.code === locationId || (l._id && String(l._id) === String(locationId))
+  );
+
+  if (!loc) {
+    throw ApiError.notFound('Location not found in warehouse');
+  }
+
+  if (name !== undefined) loc.name = name;
+  if (code !== undefined) loc.code = code;
+  if (isActive !== undefined) loc.isActive = isActive;
+
+  await warehouse.save();
+  return warehouse;
+};

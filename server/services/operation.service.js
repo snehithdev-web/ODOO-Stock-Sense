@@ -44,7 +44,11 @@ export const createOperationService = ({
 }) => {
   const loadDocument = async (id) => {
     const _id = parseObjectId(id, `${label} id`);
-    const document = await Model.findById(_id);
+    const document = await Model.findById(_id)
+      .populate('warehouse', 'name code locations')
+      .populate('from.warehouse', 'name code locations')
+      .populate('to.warehouse', 'name code locations')
+      .populate('items.product', 'name sku unit price location');
 
     if (!document) {
       throw ApiError.notFound(`${label[0].toUpperCase()}${label.slice(1)} not found`);
@@ -157,6 +161,10 @@ export const createOperationService = ({
           .sort({ documentDate: -1, _id: -1 })
           .skip(skip)
           .limit(limit)
+          .populate('warehouse', 'name code locations')
+          .populate('from.warehouse', 'name code locations')
+          .populate('to.warehouse', 'name code locations')
+          .populate('items.product', 'name sku unit price location')
           .lean(),
         Model.countDocuments(filter)
       ]);

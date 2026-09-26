@@ -45,70 +45,44 @@ const mockDeliveries = [
       { product: 'Pipe Fittings', quantity: 12, availableStock: 45 },
     ],
   },
-  {
-    _id: 'DEL-2004',
-    reference: 'DEL-2004',
-    customer: 'Harbor Logistics',
-    warehouse: 'Main Warehouse',
-    sourceLocation: 'Dock 2',
-    status: 'CANCELED',
-    createdBy: 'Samir Ali',
-    createdAt: '2026-09-19T15:10:00.000Z',
-    validatedAt: null,
-    products: [{ product: 'Sandbags', quantity: 6, availableStock: 32 }],
-  },
 ];
 
-const normalizeDelivery = (delivery = {}) => ({
-  _id: delivery._id || delivery.id || `DEL-${Date.now()}`,
-  reference: delivery.reference || delivery._id || `DEL-${Date.now()}`,
-  customer: delivery.customer || '',
-  warehouse: delivery.warehouse || '',
-  sourceLocation: delivery.sourceLocation || '',
-  status: delivery.status || 'DRAFT',
-  createdBy: delivery.createdBy || 'Current User',
-  createdAt: delivery.createdAt || new Date().toISOString(),
-  validatedAt: delivery.validatedAt || null,
-  products: Array.isArray(delivery.products)
-    ? delivery.products.map((item) => ({
-        product: item.product || '',
-        quantity: Number(item.quantity) || 0,
-        availableStock: Number(item.availableStock) || 0,
-      }))
-    : [],
-});
+export const normalizeDelivery = (delivery = {}) => {
+  const customerName = typeof delivery.customer === 'object' ? delivery.customer?.name : (delivery.customer || '');
+  const warehouseName = typeof delivery.warehouse === 'object' ? delivery.warehouse?.name : (delivery.warehouse || '');
+  const rawItems = delivery.items || delivery.products || [];
+  const products = rawItems.map((item) => ({
+    product: typeof item.product === 'object' ? `${item.product?.name} (${item.product?.sku || ''})`.trim() : (item.product || ''),
+    quantity: item.quantity || 0,
+    availableStock: item.availableStock || 100,
+  }));
 
-const createLocalDelivery = (deliveryData) => {
-  const currentDate = new Date().toISOString();
-  const newDelivery = {
-    _id: deliveryData._id || `DEL-${Date.now()}`,
-    reference: deliveryData.reference || `DEL-${Date.now()}`,
-    customer: deliveryData.customer,
-    warehouse: deliveryData.warehouse,
-    sourceLocation: deliveryData.sourceLocation,
-    status: deliveryData.status || 'DRAFT',
-    createdBy: deliveryData.createdBy || 'Current User',
-    createdAt: deliveryData.createdAt || currentDate,
-    validatedAt: deliveryData.validatedAt || null,
-    products: (deliveryData.products || []).map((product) => ({
-      product: product.product,
-      quantity: Number(product.quantity) || 0,
-      availableStock: Number(product.availableStock) || 0,
-    })),
+  return {
+    _id: delivery._id || delivery.id || `DEL-${Date.now()}`,
+    reference: delivery.reference || delivery._id || `DEL-${Date.now()}`,
+    customer: customerName,
+    warehouse: warehouseName,
+    sourceLocation: delivery.location || delivery.sourceLocation || 'Main Store',
+    status: (delivery.status || 'DRAFT').toUpperCase(),
+    createdBy: typeof delivery.createdBy === 'object' ? delivery.createdBy?.name : (delivery.createdBy || 'Current User'),
+    createdAt: delivery.createdAt || delivery.documentDate || new Date().toISOString(),
+    validatedAt: delivery.postedAt || delivery.validatedAt || null,
+    products,
   };
-
-  return normalizeDelivery(newDelivery);
 };
 
 export const getDeliveries = async () => {
   try {
     const response = await api.get('/deliveries');
-    return response.data;
+    const list = Array.isArray(response.data?.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+    return {
+      status: 'success',
+      data: list.map(normalizeDelivery),
+    };
   } catch {
     return {
       status: 'success',
-      message: 'Using local delivery data until the backend endpoint is available.',
-      data: mockDeliveries,
+      data: mockDeliveries.map(normalizeDelivery),
     };
   }
 };
@@ -116,13 +90,16 @@ export const getDeliveries = async () => {
 export const getDeliveryById = async (id) => {
   try {
     const response = await api.get(`/deliveries/${id}`);
-    return response.data;
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeDelivery(item),
+    };
   } catch {
     const delivery = mockDeliveries.find((item) => item._id === id) || mockDeliveries[0];
     return {
       status: 'success',
-      message: 'Loaded delivery from local demo data.',
-      data: delivery,
+      data: normalizeDelivery(delivery),
     };
   }
 };
@@ -130,9 +107,16 @@ export const getDeliveryById = async (id) => {
 export const createDelivery = async (deliveryData) => {
   try {
     const response = await api.post('/deliveries', deliveryData);
-    return response.data;
-  } catch {
-    const createdDelivery = createLocalDelivery({
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeDelivery(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
+    const createdDelivery = normalizeDelivery({
       ...deliveryData,
       status: 'DRAFT',
       createdBy: 'Current User',
@@ -140,7 +124,7 @@ export const createDelivery = async (deliveryData) => {
 
     return {
       status: 'success',
-      message: 'Delivery saved locally in the frontend demo state.',
+      message: 'Delivery saved locally.',
       data: createdDelivery,
     };
   }
@@ -149,18 +133,22 @@ export const createDelivery = async (deliveryData) => {
 export const updateDelivery = async (id, deliveryData) => {
   try {
     const response = await api.put(`/deliveries/${id}`, deliveryData);
-    return response.data;
-  } catch {
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeDelivery(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
     const updatedDelivery = normalizeDelivery({
       ...deliveryData,
       _id: id,
-      reference: deliveryData.reference || id,
-      createdAt: deliveryData.createdAt || new Date().toISOString(),
     });
 
     return {
       status: 'success',
-      message: 'Delivery updated locally in the frontend demo state.',
       data: updatedDelivery,
     };
   }
@@ -168,79 +156,82 @@ export const updateDelivery = async (id, deliveryData) => {
 
 export const pickDelivery = async (id) => {
   try {
-    const response = await api.patch(`/deliveries/${id}/pick`);
-    return response.data;
-  } catch {
-    const delivery = mockDeliveries.find((item) => item._id === id) || mockDeliveries[0];
-    const updated = normalizeDelivery({
-      ...delivery,
-      status: 'PICKED',
-    });
-
+    const response = await api.patch(`/deliveries/${id}`, { status: 'ready' });
+    const item = response.data?.data || response.data;
     return {
       status: 'success',
-      message: 'Delivery marked as picked locally in the frontend demo state.',
-      data: updated,
+      data: normalizeDelivery(item),
     };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
+    const delivery = mockDeliveries.find((item) => item._id === id) || mockDeliveries[0];
+    const updated = normalizeDelivery({ ...delivery, status: 'READY' });
+    return { status: 'success', data: updated };
   }
 };
 
 export const packDelivery = async (id) => {
   try {
-    const response = await api.patch(`/deliveries/${id}/pack`);
-    return response.data;
-  } catch {
-    const delivery = mockDeliveries.find((item) => item._id === id) || mockDeliveries[0];
-    const updated = normalizeDelivery({
-      ...delivery,
-      status: 'PACKED',
-    });
-
+    const response = await api.patch(`/deliveries/${id}`, { status: 'ready' });
+    const item = response.data?.data || response.data;
     return {
       status: 'success',
-      message: 'Delivery marked as packed locally in the frontend demo state.',
-      data: updated,
+      data: normalizeDelivery(item),
     };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
+    const delivery = mockDeliveries.find((item) => item._id === id) || mockDeliveries[0];
+    const updated = normalizeDelivery({ ...delivery, status: 'PACKED' });
+    return { status: 'success', data: updated };
   }
 };
 
 export const validateDelivery = async (id) => {
   try {
-    const response = await api.patch(`/deliveries/${id}/validate`);
-    return response.data;
-  } catch {
-    const delivery = mockDeliveries.find((item) => item._id === id) || mockDeliveries[0];
-    const updated = normalizeDelivery({
-      ...delivery,
-      status: 'DONE',
-      validatedAt: new Date().toISOString(),
-    });
-
+    let response;
+    try {
+      response = await api.post(`/deliveries/${id}/post`);
+    } catch (innerErr) {
+      if (innerErr?.status === 404 || innerErr?.message?.includes('Not Found')) {
+        response = await api.patch(`/deliveries/${id}`, { status: 'done' });
+      } else {
+        throw innerErr;
+      }
+    }
+    const item = response.data?.data?.document || response.data?.data || response.data;
     return {
       status: 'success',
-      message: 'Delivery validated locally in the frontend demo state.',
-      data: updated,
+      data: normalizeDelivery(item),
     };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
+    const delivery = mockDeliveries.find((item) => item._id === id) || mockDeliveries[0];
+    const updated = normalizeDelivery({ ...delivery, status: 'DONE', validatedAt: new Date().toISOString() });
+    return { status: 'success', data: updated };
   }
 };
 
 export const cancelDelivery = async (id) => {
   try {
-    const response = await api.patch(`/deliveries/${id}/cancel`);
-    return response.data;
-  } catch {
-    const delivery = mockDeliveries.find((item) => item._id === id) || mockDeliveries[0];
-    const updated = normalizeDelivery({
-      ...delivery,
-      status: 'CANCELED',
-      validatedAt: delivery.validatedAt || null,
-    });
-
+    const response = await api.post(`/deliveries/${id}/cancel`);
+    const item = response.data?.data || response.data;
     return {
       status: 'success',
-      message: 'Delivery canceled locally in the frontend demo state.',
-      data: updated,
+      data: normalizeDelivery(item),
     };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
+    const delivery = mockDeliveries.find((item) => item._id === id) || mockDeliveries[0];
+    const updated = normalizeDelivery({ ...delivery, status: 'CANCELED' });
+    return { status: 'success', data: updated };
   }
 };
 

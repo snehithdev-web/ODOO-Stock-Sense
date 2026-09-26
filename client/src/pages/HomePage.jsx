@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../context/AuthContext';
-import { Package, ShieldCheck, Database, ArrowRight, Activity } from 'lucide-react';
+import { Package, ShieldCheck, Database, ArrowRight, ArrowRightLeft, Sparkles, Layers } from 'lucide-react';
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth();
@@ -13,14 +13,14 @@ const HomePage = () => {
       <div className="home-container">
         <div className="hero-banner">
           <div className="hero-badge">
-            <Activity size={16} color="#6366f1" />
-            <span>Hour 2 Foundation Ready</span>
+            <Sparkles size={15} color="#6366f1" />
+            <span>Next-Gen MERN ERP Ready</span>
           </div>
           <h1 className="hero-title">
-            Welcome to <span className="text-highlight">StockSense</span>
+            Intelligent Inventory & <span className="text-gradient">Stock Management</span>
           </h1>
           <p className="hero-subtitle">
-            Modular, scalable MERN stack Inventory Management System. Secure authentication with JWT, role-based controls, and master product data management.
+            Modular, scalable MERN stack ERP system. Seamless real-time tracking, double-entry inventory ledger, automated stock movements, and role-based access control.
           </p>
 
           <div className="hero-actions">
@@ -32,40 +32,58 @@ const HomePage = () => {
           </div>
         </div>
 
-        <div className="architecture-grid">
-          <div className="info-card">
-            <div className="card-icon">
-              <ShieldCheck size={24} color="#6366f1" />
-            </div>
-            <h3>Authentication Module</h3>
-            <p>JWT-based sessions, password encryption via bcrypt, OTP verification, and RBAC roles.</p>
-            <div className="card-footer-tags">
-              <StatusBadge type="manager">Manager Role</StatusBadge>
-              <StatusBadge type="staff">Staff Role</StatusBadge>
-            </div>
+        <div className="features-section">
+          <div className="section-title-wrapper text-center">
+            <h2 className="section-title">Core Architecture & Capabilities</h2>
+            <p className="section-subtitle">Engineered for accuracy, scalability, and seamless user experience</p>
           </div>
 
-          <div className="info-card">
-            <div className="card-icon">
-              <Package size={24} color="#10b981" />
+          <div className="architecture-grid">
+            <div className="info-card">
+              <div className="card-icon icon-purple">
+                <ShieldCheck size={24} />
+              </div>
+              <h3>Authentication & Security</h3>
+              <p>JWT-based sessions, bcrypt password encryption, OTP email verification, and strict role-based controls (Manager vs Staff).</p>
+              <div className="card-footer-tags">
+                <StatusBadge type="manager">Manager Role</StatusBadge>
+                <StatusBadge type="staff">Staff Role</StatusBadge>
+              </div>
             </div>
-            <h3>Product Master Data</h3>
-            <p>Full Product CRUD with SKU validation, Category classification, Units of Measure, and initial stock tracking.</p>
-            <div className="card-footer-tags">
-              <StatusBadge type="success">SKU Uniqueness</StatusBadge>
-              <StatusBadge type="info">Category Filter</StatusBadge>
-            </div>
-          </div>
 
-          <div className="info-card">
-            <div className="card-icon">
-              <Database size={24} color="#3b82f6" />
+            <div className="info-card">
+              <div className="card-icon icon-emerald">
+                <Package size={24} />
+              </div>
+              <h3>Product Master Data</h3>
+              <p>Comprehensive Product CRUD with automated SKU generation, Category classification, Units of Measure, and threshold stock alerts.</p>
+              <div className="card-footer-tags">
+                <StatusBadge type="success">SKU Validation</StatusBadge>
+                <StatusBadge type="info">Category Filtering</StatusBadge>
+              </div>
             </div>
-            <h3>MERN Architecture</h3>
-            <p>Clean layer separation: React components → Feature API → Express Routes → Controllers → Services → Models → MongoDB.</p>
-            <div className="card-footer-tags">
-              <StatusBadge type="default">Express + Mongo</StatusBadge>
-              <StatusBadge type="default">Vite + React</StatusBadge>
+
+            <div className="info-card">
+              <div className="card-icon icon-blue">
+                <Database size={24} />
+              </div>
+              <h3>Double-Entry Stock Ledger</h3>
+              <p>Full auditability tracking every physical item movement between vendors, warehouses, internal zones, and customer deliveries.</p>
+              <div className="card-footer-tags">
+                <StatusBadge type="default">Express + Mongo</StatusBadge>
+                <StatusBadge type="default">Vite + React</StatusBadge>
+              </div>
+            </div>
+
+            <div className="info-card">
+              <div className="card-icon icon-amber">
+                <Layers size={24} />
+              </div>
+              <h3>Operational Workflows</h3>
+              <p>Integrated processing for Receipts, Delivery Orders, Internal Transfers, and Inventory Adjustments with draft validation lifecycle.</p>
+              <div className="card-footer-tags">
+                <StatusBadge type="warning">Multi-Stage States</StatusBadge>
+              </div>
             </div>
           </div>
         </div>
@@ -75,3 +93,4 @@ const HomePage = () => {
 };
 
 export default HomePage;
+

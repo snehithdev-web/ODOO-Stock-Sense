@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRightLeft, Save, X, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { fetchProductsApi } from '../products/productApi';
+import { getWarehouses } from '../warehouses/warehouseApi';
 
-const warehouseOptions = ['Main Warehouse', 'Production Warehouse', 'North Hub', 'South Hub', 'Cold Storage'];
-const productCatalog = ['Steel Rods', 'Cement', 'Wire Mesh', 'Pipe Fittings', 'Paint', 'Sandbags'];
+const defaultWarehouseOptions = ['Main Warehouse', 'Production Warehouse', 'North Hub', 'South Hub', 'Cold Storage'];
+const defaultProductCatalog = ['Steel Rods', 'Cement', 'Wire Mesh', 'Pipe Fittings', 'Paint', 'Sandbags'];
 
 const createEmptyRow = () => ({ product: '', quantity: 1 });
 
@@ -15,6 +17,28 @@ const TransferForm = ({ onClose, onSubmit, submitting = false }) => {
     products: [createEmptyRow()],
   });
   const [error, setError] = useState('');
+  const [productCatalog, setProductCatalog] = useState(defaultProductCatalog);
+  const [warehouseOptions, setWarehouseOptions] = useState(defaultWarehouseOptions);
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const [prodRes, whRes] = await Promise.all([
+          fetchProductsApi({ limit: 100 }),
+          getWarehouses(),
+        ]);
+        if (Array.isArray(prodRes?.data) && prodRes.data.length > 0) {
+          setProductCatalog(prodRes.data.map((p) => p.name));
+        }
+        if (Array.isArray(whRes?.data) && whRes.data.length > 0) {
+          setWarehouseOptions(whRes.data.map((w) => w.name));
+        }
+      } catch {
+        // keep defaults
+      }
+    };
+    loadOptions();
+  }, []);
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -69,13 +93,10 @@ const TransferForm = ({ onClose, onSubmit, submitting = false }) => {
 
     const payload = {
       sourceWarehouse: formData.sourceWarehouse.trim(),
-      sourceLocation: formData.sourceLocation.trim(),
+      sourceLocation: formData.sourceLocation.trim().toUpperCase(),
       destinationWarehouse: formData.destinationWarehouse.trim(),
-      destinationLocation: formData.destinationLocation.trim(),
-      createdBy: 'Current User',
-      status: 'DRAFT',
-      createdAt: new Date().toISOString(),
-      products: formData.products.map((row) => ({
+      destinationLocation: formData.destinationLocation.trim().toUpperCase(),
+      items: formData.products.map((row) => ({
         product: row.product.trim(),
         quantity: Number(row.quantity),
       })),

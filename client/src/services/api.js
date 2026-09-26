@@ -28,13 +28,19 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Clear token and auto logout if 401 unauthorized returned
       localStorage.removeItem('stocksense_token');
       localStorage.removeItem('stocksense_user');
     }
-    return Promise.reject(
-      error.response?.data || { message: error.message || 'An unexpected error occurred' }
-    );
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      (typeof error.response?.data === 'string' ? error.response.data : null) ||
+      error.message ||
+      'An unexpected error occurred';
+    return Promise.reject({
+      ...(typeof error.response?.data === 'object' ? error.response.data : {}),
+      message,
+    });
   }
 );
 

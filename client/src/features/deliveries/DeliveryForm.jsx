@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PackagePlus, Save, X, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { fetchProductsApi } from '../products/productApi';
+import { getWarehouses } from '../warehouses/warehouseApi';
 
 const customerOptions = [
   'ABC Manufacturing',
@@ -9,9 +11,9 @@ const customerOptions = [
   'BluePeak Retail',
 ];
 
-const warehouseOptions = ['Main Warehouse', 'North Hub', 'South Hub', 'Cold Storage'];
+const defaultWarehouseOptions = ['Main Warehouse', 'North Hub', 'South Hub', 'Cold Storage'];
 
-const productCatalog = [
+const defaultProductCatalog = [
   'Steel Rods',
   'Cement',
   'Wire Mesh',
@@ -21,7 +23,7 @@ const productCatalog = [
   'Industrial Fasteners',
 ];
 
-const createEmptyRow = () => ({ product: '', quantity: 1, availableStock: 0 });
+const createEmptyRow = () => ({ product: '', quantity: 1, availableStock: 100 });
 
 const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
   const [formData, setFormData] = useState({
@@ -31,6 +33,34 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
     products: [createEmptyRow()],
   });
   const [error, setError] = useState('');
+  const [productCatalog, setProductCatalog] = useState(defaultProductCatalog);
+  const [warehouseList, setWarehouseList] = useState(defaultWarehouseOptions);
+  const [stockMap, setStockMap] = useState({});
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const [prodRes, whRes] = await Promise.all([
+          fetchProductsApi({ limit: 100 }),
+          getWarehouses(),
+        ]);
+        if (Array.isArray(prodRes?.data) && prodRes.data.length > 0) {
+          setProductCatalog(prodRes.data.map((p) => p.name));
+          const map = {};
+          prodRes.data.forEach((p) => {
+            map[p.name] = p.quantity;
+          });
+          setStockMap(map);
+        }
+        if (Array.isArray(whRes?.data) && whRes.data.length > 0) {
+          setWarehouseList(whRes.data.map((w) => w.name));
+        }
+      } catch {
+        // keep defaults
+      }
+    };
+    loadOptions();
+  }, []);
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -46,16 +76,7 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
         const updatedRow = { ...row, [field]: nextValue };
 
         if (field === 'product') {
-          const stockMap = {
-            'Steel Rods': 100,
-            Cement: 60,
-            'Wire Mesh': 80,
-            'Pipe Fittings': 45,
-            Paint: 40,
-            Sandbags: 32,
-            'Industrial Fasteners': 55,
-          };
-          updatedRow.availableStock = stockMap[nextValue] || 0;
+          updatedRow.availableStock = stockMap[nextValue] !== undefined ? stockMap[nextValue] : 100;
         }
 
         return updatedRow;
@@ -125,17 +146,13 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
     }
 
     const payload = {
-      customer: formData.customer.trim(),
+      customer: { name: formData.customer.trim() },
       warehouse: formData.warehouse.trim(),
-      sourceLocation: formData.sourceLocation.trim(),
-      products: formData.products.map((row) => ({
+      location: formData.sourceLocation.trim().toUpperCase(),
+      items: formData.products.map((row) => ({
         product: row.product.trim(),
         quantity: Number(row.quantity),
-        availableStock: Number(row.availableStock) || 0,
       })),
-      createdBy: 'Current User',
-      status: 'DRAFT',
-      createdAt: new Date().toISOString(),
     };
 
     await onSubmit(payload);
@@ -189,7 +206,7 @@ const DeliveryForm = ({ onClose, onSubmit, submitting = false }) => {
                 onChange={(e) => updateField('warehouse', e.target.value)}
               >
                 <option value="">Select warehouse</option>
-                {warehouseOptions.map((warehouse) => (
+                {warehouseList.map((warehouse) => (
                   <option key={warehouse} value={warehouse}>
                     {warehouse}
                   </option>

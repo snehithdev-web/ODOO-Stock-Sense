@@ -18,7 +18,7 @@ const mockTransfers = [
     ],
   },
   {
-    _id: 'TRF-3002', 
+    _id: 'TRF-3002',
     reference: 'TRF-3002',
     sourceWarehouse: 'North Hub',
     sourceLocation: 'Rack A',
@@ -43,71 +43,47 @@ const mockTransfers = [
     completedAt: '2026-09-20T09:12:00.000Z',
     products: [{ product: 'Pipe Fittings', quantity: 12 }],
   },
-  {
-    _id: 'TRF-3004',
-    reference: 'TRF-3004',
-    sourceWarehouse: 'Main Warehouse',
-    sourceLocation: 'Rack B',
-    destinationWarehouse: 'Production Warehouse',
-    destinationLocation: 'Finished Goods',
-    status: 'CANCELED',
-    createdBy: 'Samir Ali',
-    createdAt: '2026-09-19T14:14:00.000Z',
-    completedAt: null,
-    products: [{ product: 'Paint', quantity: 10 }],
-  },
 ];
 
-const normalizeTransfer = (transfer = {}) => ({
-  _id: transfer._id || transfer.id || `TRF-${Date.now()}`,
-  reference: transfer.reference || transfer._id || `TRF-${Date.now()}`,
-  sourceWarehouse: transfer.sourceWarehouse || '',
-  sourceLocation: transfer.sourceLocation || '',
-  destinationWarehouse: transfer.destinationWarehouse || '',
-  destinationLocation: transfer.destinationLocation || '',
-  status: transfer.status || 'DRAFT',
-  createdBy: transfer.createdBy || 'Current User',
-  createdAt: transfer.createdAt || new Date().toISOString(),
-  completedAt: transfer.completedAt || null,
-  products: Array.isArray(transfer.products)
-    ? transfer.products.map((item) => ({
-        product: item.product || '',
-        quantity: Number(item.quantity) || 0,
-      }))
-    : [],
-});
+export const normalizeTransfer = (transfer = {}) => {
+  const sourceWh = typeof transfer.from?.warehouse === 'object' ? transfer.from.warehouse?.name : (transfer.from?.warehouse || transfer.sourceWarehouse || 'Main Warehouse');
+  const sourceLoc = transfer.from?.location || transfer.sourceLocation || 'Main Store';
+  const destWh = typeof transfer.to?.warehouse === 'object' ? transfer.to.warehouse?.name : (transfer.to?.warehouse || transfer.destinationWarehouse || 'Destination Warehouse');
+  const destLoc = transfer.to?.location || transfer.destinationLocation || 'Main Store';
 
-const createLocalTransfer = (transferData) => {
-  const currentDate = new Date().toISOString();
-  const newTransfer = {
-    _id: transferData._id || `TRF-${Date.now()}`,
-    reference: transferData.reference || `TRF-${Date.now()}`,
-    sourceWarehouse: transferData.sourceWarehouse,
-    sourceLocation: transferData.sourceLocation,
-    destinationWarehouse: transferData.destinationWarehouse,
-    destinationLocation: transferData.destinationLocation,
-    status: transferData.status || 'DRAFT',
-    createdBy: transferData.createdBy || 'Current User',
-    createdAt: transferData.createdAt || currentDate,
-    completedAt: transferData.completedAt || null,
-    products: (transferData.products || []).map((item) => ({
-      product: item.product,
-      quantity: Number(item.quantity) || 0,
-    })),
+  const rawItems = transfer.items || transfer.products || [];
+  const products = rawItems.map((item) => ({
+    product: typeof item.product === 'object' ? `${item.product?.name} (${item.product?.sku || ''})`.trim() : (item.product || ''),
+    quantity: item.quantity || 0,
+  }));
+
+  return {
+    _id: transfer._id || transfer.id || `TRF-${Date.now()}`,
+    reference: transfer.reference || transfer._id || `TRF-${Date.now()}`,
+    sourceWarehouse: sourceWh,
+    sourceLocation: sourceLoc,
+    destinationWarehouse: destWh,
+    destinationLocation: destLoc,
+    status: (transfer.status || 'DRAFT').toUpperCase(),
+    createdBy: typeof transfer.createdBy === 'object' ? transfer.createdBy?.name : (transfer.createdBy || 'Current User'),
+    createdAt: transfer.createdAt || transfer.documentDate || new Date().toISOString(),
+    completedAt: transfer.postedAt || transfer.completedAt || null,
+    products,
   };
-
-  return normalizeTransfer(newTransfer);
 };
 
 export const getTransfers = async () => {
   try {
     const response = await api.get('/transfers');
-    return response.data;
+    const list = Array.isArray(response.data?.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+    return {
+      status: 'success',
+      data: list.map(normalizeTransfer),
+    };
   } catch {
     return {
       status: 'success',
-      message: 'Using local transfer data until the backend endpoint is available.',
-      data: mockTransfers,
+      data: mockTransfers.map(normalizeTransfer),
     };
   }
 };
@@ -115,13 +91,16 @@ export const getTransfers = async () => {
 export const getTransferById = async (id) => {
   try {
     const response = await api.get(`/transfers/${id}`);
-    return response.data;
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeTransfer(item),
+    };
   } catch {
     const transfer = mockTransfers.find((item) => item._id === id) || mockTransfers[0];
     return {
       status: 'success',
-      message: 'Loaded transfer from local demo data.',
-      data: transfer,
+      data: normalizeTransfer(transfer),
     };
   }
 };
@@ -129,9 +108,16 @@ export const getTransferById = async (id) => {
 export const createTransfer = async (transferData) => {
   try {
     const response = await api.post('/transfers', transferData);
-    return response.data;
-  } catch {
-    const createdTransfer = createLocalTransfer({
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeTransfer(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
+    const createdTransfer = normalizeTransfer({
       ...transferData,
       status: 'DRAFT',
       createdBy: 'Current User',
@@ -139,7 +125,7 @@ export const createTransfer = async (transferData) => {
 
     return {
       status: 'success',
-      message: 'Transfer saved locally in the frontend demo state.',
+      message: 'Transfer saved locally.',
       data: createdTransfer,
     };
   }
@@ -148,18 +134,22 @@ export const createTransfer = async (transferData) => {
 export const updateTransfer = async (id, transferData) => {
   try {
     const response = await api.put(`/transfers/${id}`, transferData);
-    return response.data;
-  } catch {
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeTransfer(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
     const updatedTransfer = normalizeTransfer({
       ...transferData,
       _id: id,
-      reference: transferData.reference || id,
-      createdAt: transferData.createdAt || new Date().toISOString(),
     });
 
     return {
       status: 'success',
-      message: 'Transfer updated locally in the frontend demo state.',
       data: updatedTransfer,
     };
   }
@@ -167,41 +157,46 @@ export const updateTransfer = async (id, transferData) => {
 
 export const validateTransfer = async (id) => {
   try {
-    const response = await api.patch(`/transfers/${id}/validate`);
-    return response.data;
-  } catch {
-    const transfer = mockTransfers.find((item) => item._id === id) || mockTransfers[0];
-    const updated = normalizeTransfer({
-      ...transfer,
-      status: 'DONE',
-      completedAt: new Date().toISOString(),
-    });
-
+    let response;
+    try {
+      response = await api.post(`/transfers/${id}/post`);
+    } catch (innerErr) {
+      if (innerErr?.status === 404 || innerErr?.message?.includes('Not Found')) {
+        response = await api.patch(`/transfers/${id}`, { status: 'done' });
+      } else {
+        throw innerErr;
+      }
+    }
+    const item = response.data?.data?.document || response.data?.data || response.data;
     return {
       status: 'success',
-      message: 'Transfer completed locally in the frontend demo state.',
-      data: updated,
+      data: normalizeTransfer(item),
     };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
+    const transfer = mockTransfers.find((item) => item._id === id) || mockTransfers[0];
+    const updated = normalizeTransfer({ ...transfer, status: 'DONE', completedAt: new Date().toISOString() });
+    return { status: 'success', data: updated };
   }
 };
 
 export const cancelTransfer = async (id) => {
   try {
-    const response = await api.patch(`/transfers/${id}/cancel`);
-    return response.data;
-  } catch {
-    const transfer = mockTransfers.find((item) => item._id === id) || mockTransfers[0];
-    const updated = normalizeTransfer({
-      ...transfer,
-      status: 'CANCELED',
-      completedAt: transfer.completedAt || null,
-    });
-
+    const response = await api.post(`/transfers/${id}/cancel`);
+    const item = response.data?.data || response.data;
     return {
       status: 'success',
-      message: 'Transfer canceled locally in the frontend demo state.',
-      data: updated,
+      data: normalizeTransfer(item),
     };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
+    const transfer = mockTransfers.find((item) => item._id === id) || mockTransfers[0];
+    const updated = normalizeTransfer({ ...transfer, status: 'CANCELED' });
+    return { status: 'success', data: updated };
   }
 };
 

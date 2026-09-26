@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PackagePlus, Save, X, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { fetchProductsApi } from '../products/productApi';
+import { getWarehouses } from '../warehouses/warehouseApi';
 
 const supplierOptions = [
   'ABC Steel Suppliers',
@@ -9,9 +11,9 @@ const supplierOptions = [
   'Global Hardware Group',
 ];
 
-const warehouseOptions = ['Main Warehouse', 'North Hub', 'South Hub', 'Cold Storage'];
+const defaultWarehouseOptions = ['Main Warehouse', 'North Hub', 'South Hub', 'Cold Storage'];
 
-const availableProducts = [
+const defaultProducts = [
   'Steel Rods',
   'Cement',
   'Wire Mesh',
@@ -31,6 +33,28 @@ const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
     products: [createEmptyRow()],
   });
   const [error, setError] = useState('');
+  const [availableProducts, setAvailableProducts] = useState(defaultProducts);
+  const [warehouseList, setWarehouseList] = useState(defaultWarehouseOptions);
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const [prodRes, whRes] = await Promise.all([
+          fetchProductsApi({ limit: 100 }),
+          getWarehouses(),
+        ]);
+        if (Array.isArray(prodRes?.data) && prodRes.data.length > 0) {
+          setAvailableProducts(prodRes.data.map((p) => p.name));
+        }
+        if (Array.isArray(whRes?.data) && whRes.data.length > 0) {
+          setWarehouseList(whRes.data.map((w) => w.name));
+        }
+      } catch {
+        // keep fallback options
+      }
+    };
+    loadOptions();
+  }, []);
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -104,16 +128,13 @@ const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
     }
 
     const payload = {
-      supplier: formData.supplier.trim(),
+      supplier: { name: formData.supplier.trim() },
       warehouse: formData.warehouse.trim(),
-      location: formData.location.trim(),
-      products: formData.products.map((row) => ({
+      location: formData.location.trim().toUpperCase(),
+      items: formData.products.map((row) => ({
         product: row.product.trim(),
         quantity: Number(row.quantity),
       })),
-      createdBy: 'Current User',
-      status: 'DRAFT',
-      createdAt: new Date().toISOString(),
     };
 
     await onSubmit(payload);
@@ -167,7 +188,7 @@ const ReceiptForm = ({ onClose, onSubmit, submitting = false }) => {
                 onChange={(e) => updateField('warehouse', e.target.value)}
               >
                 <option value="">Select warehouse</option>
-                {warehouseOptions.map((warehouse) => (
+                {warehouseList.map((warehouse) => (
                   <option key={warehouse} value={warehouse}>
                     {warehouse}
                   </option>

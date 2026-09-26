@@ -2,7 +2,9 @@ import {
   listWarehouses,
   getWarehouseById as fetchWarehouseById,
   createWarehouse,
-  addLocationToWarehouse
+  addLocationToWarehouse,
+  updateWarehouse as updateWarehouseService,
+  updateLocationInWarehouse
 } from '../services/warehouse.service.js';
 import { buildPagination, parseBooleanFlag } from '../utils/query.js';
 import { sendSuccess } from '../utils/response.js';
@@ -72,6 +74,22 @@ export const createNewWarehouse = async (req, res, next) => {
   }
 };
 
+// @desc    Update a warehouse
+// @route   PUT /api/warehouses/:id
+// @access  Inventory manager
+export const updateWarehouse = async (req, res, next) => {
+  try {
+    const warehouse = await updateWarehouseService(req.params.id, req.body);
+
+    return sendSuccess(res, {
+      message: 'Warehouse updated successfully',
+      data: warehouse
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Add a location or rack to an existing warehouse
 // @route   POST /api/warehouses/:id/locations
 // @access  Inventory manager
@@ -84,6 +102,22 @@ export const addLocation = async (req, res, next) => {
     return sendSuccess(res, {
       message: 'Location added successfully',
       statusCode: 201,
+      data: warehouse
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update a location in a warehouse
+// @route   PUT /api/warehouses/:id/locations/:locationId
+// @access  Inventory manager
+export const updateLocation = async (req, res, next) => {
+  try {
+    const warehouse = await updateLocationInWarehouse(req.params.id, req.params.locationId, req.body);
+
+    return sendSuccess(res, {
+      message: 'Location updated successfully',
       data: warehouse
     });
   } catch (error) {

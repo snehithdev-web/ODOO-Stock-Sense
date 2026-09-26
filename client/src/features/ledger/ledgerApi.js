@@ -46,48 +46,58 @@ const mockMoveHistory = [
     destinationWarehouse: 'Production Warehouse',
     destinationLocation: 'Production Rack',
   },
-  {
-    _id: 'MVT-7004',
-    reference: 'ADJ-4001',
-    movementType: 'ADJUSTMENT',
-    product: 'Steel Rods',
-    quantity: -3,
-    fromLocation: 'Main Store',
-    toLocation: 'Adjustment',
-    warehouse: 'Main Warehouse',
-    performedBy: 'Nadia Hart',
-    date: '2026-09-21T15:10:00.000Z',
-    status: 'CANCELED',
-    recordedQuantity: 100,
-    physicalQuantity: 97,
-    difference: -3,
-    reason: '3 damaged items found during physical count.',
-  },
 ];
+
+export const normalizeMovement = (m = {}) => {
+  const productName = typeof m.product === 'object' ? `${m.product?.name} (${m.product?.sku || ''})`.trim() : (m.product || 'Unknown Product');
+  const warehouseName = typeof m.warehouse === 'object' ? m.warehouse?.name : (m.warehouse || 'Main Warehouse');
+  const user = typeof m.performedBy === 'object' ? m.performedBy?.name : (m.performedBy || 'System');
+  const qty = Number(m.quantity || 0);
+
+  return {
+    _id: m._id || m.id || `MVT-${Date.now()}`,
+    reference: m.operationRef || m.reference || `MVT-${Date.now()}`,
+    movementType: m.operationType || m.movementType || 'TRANSFER',
+    product: productName,
+    quantity: qty,
+    fromLocation: m.fromLocation || (qty < 0 ? m.location : 'Supplier/External'),
+    toLocation: m.toLocation || (qty > 0 ? m.location : 'Customer/External'),
+    warehouse: warehouseName,
+    performedBy: user,
+    date: m.occurredAt || m.createdAt || m.date || new Date().toISOString(),
+    status: m.status || 'DONE',
+  };
+};
 
 export const getMoveHistory = async (params = {}) => {
   try {
-    const response = await api.get('/move-history', { params });
-    return response.data;
+    const response = await api.get('/stock/movements', { params });
+    const list = Array.isArray(response.data?.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+    return {
+      status: 'success',
+      data: list.map(normalizeMovement),
+    };
   } catch {
     return {
       status: 'success',
-      message: 'Using local movement history until the backend endpoint is available.',
-      data: mockMoveHistory,
+      data: mockMoveHistory.map(normalizeMovement),
     };
   }
 };
 
 export const getMoveById = async (id) => {
   try {
-    const response = await api.get(`/move-history/${id}`);
-    return response.data;
+    const response = await api.get(`/stock/movements/${id}`);
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeMovement(item),
+    };
   } catch {
     const movement = mockMoveHistory.find((item) => item._id === id) || mockMoveHistory[0];
     return {
       status: 'success',
-      message: 'Loaded movement from local demo data.',
-      data: movement,
+      data: normalizeMovement(movement),
     };
   }
 };

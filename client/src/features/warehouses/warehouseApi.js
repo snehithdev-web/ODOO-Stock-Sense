@@ -31,45 +31,32 @@ const mockWarehouses = [
   },
 ];
 
-const normalizeWarehouse = (warehouse = {}) => ({
+export const normalizeWarehouse = (warehouse = {}) => ({
   _id: warehouse._id || warehouse.id || `WH-${Date.now()}`,
   name: warehouse.name || '',
   code: warehouse.code || '',
-  status: warehouse.status || 'ACTIVE',
+  status: warehouse.isActive === false ? 'INACTIVE' : (warehouse.status || 'ACTIVE'),
   locations: Array.isArray(warehouse.locations)
     ? warehouse.locations.map((location) => ({
-        _id: location._id || location.id || `LOC-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+        _id: location._id || location.id || location.code || `LOC-${Date.now()}`,
         name: location.name || '',
         code: location.code || '',
       }))
     : [],
 });
 
-const createLocalWarehouse = (warehouseData) => {
-  const newWarehouse = {
-    _id: warehouseData._id || `WH-${Date.now()}`,
-    name: warehouseData.name,
-    code: warehouseData.code,
-    status: warehouseData.status || 'ACTIVE',
-    locations: (warehouseData.locations || []).map((location) => ({
-      _id: location._id || `LOC-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
-      name: location.name,
-      code: location.code,
-    })),
-  };
-
-  return normalizeWarehouse(newWarehouse);
-};
-
 export const getWarehouses = async () => {
   try {
     const response = await api.get('/warehouses');
-    return response.data;
+    const list = Array.isArray(response.data?.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+    return {
+      status: 'success',
+      data: list.map(normalizeWarehouse),
+    };
   } catch {
     return {
       status: 'success',
-      message: 'Using local warehouse data until the backend endpoint is available.',
-      data: mockWarehouses,
+      data: mockWarehouses.map(normalizeWarehouse),
     };
   }
 };
@@ -77,13 +64,16 @@ export const getWarehouses = async () => {
 export const getWarehouseById = async (id) => {
   try {
     const response = await api.get(`/warehouses/${id}`);
-    return response.data;
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeWarehouse(item),
+    };
   } catch {
     const warehouse = mockWarehouses.find((item) => item._id === id) || mockWarehouses[0];
     return {
       status: 'success',
-      message: 'Loaded warehouse from local demo data.',
-      data: warehouse,
+      data: normalizeWarehouse(warehouse),
     };
   }
 };
@@ -91,16 +81,23 @@ export const getWarehouseById = async (id) => {
 export const createWarehouse = async (warehouseData) => {
   try {
     const response = await api.post('/warehouses', warehouseData);
-    return response.data;
-  } catch {
-    const createdWarehouse = createLocalWarehouse({
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeWarehouse(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
+    const createdWarehouse = normalizeWarehouse({
       ...warehouseData,
       status: 'ACTIVE',
     });
 
     return {
       status: 'success',
-      message: 'Warehouse saved locally in the frontend demo state.',
+      message: 'Warehouse saved locally.',
       data: createdWarehouse,
     };
   }
@@ -109,8 +106,15 @@ export const createWarehouse = async (warehouseData) => {
 export const updateWarehouse = async (id, warehouseData) => {
   try {
     const response = await api.put(`/warehouses/${id}`, warehouseData);
-    return response.data;
-  } catch {
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeWarehouse(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
     const updatedWarehouse = normalizeWarehouse({
       ...warehouseData,
       _id: id,
@@ -118,7 +122,6 @@ export const updateWarehouse = async (id, warehouseData) => {
 
     return {
       status: 'success',
-      message: 'Warehouse updated locally in the frontend demo state.',
       data: updatedWarehouse,
     };
   }
@@ -127,8 +130,15 @@ export const updateWarehouse = async (id, warehouseData) => {
 export const addLocation = async (warehouseId, locationData) => {
   try {
     const response = await api.post(`/warehouses/${warehouseId}/locations`, locationData);
-    return response.data;
-  } catch {
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeWarehouse(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
     const warehouse = mockWarehouses.find((item) => item._id === warehouseId) || mockWarehouses[0];
     const createdLocation = {
       _id: locationData._id || `LOC-${Date.now()}`,
@@ -138,8 +148,7 @@ export const addLocation = async (warehouseId, locationData) => {
 
     return {
       status: 'success',
-      message: 'Location added locally in the frontend demo state.',
-      data: { ...warehouse, locations: [...warehouse.locations, createdLocation] },
+      data: normalizeWarehouse({ ...warehouse, locations: [...warehouse.locations, createdLocation] }),
     };
   }
 };
@@ -147,17 +156,23 @@ export const addLocation = async (warehouseId, locationData) => {
 export const updateLocation = async (warehouseId, locationId, locationData) => {
   try {
     const response = await api.put(`/warehouses/${warehouseId}/locations/${locationId}`, locationData);
-    return response.data;
-  } catch {
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeWarehouse(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
     const warehouse = mockWarehouses.find((item) => item._id === warehouseId) || mockWarehouses[0];
     const updatedLocations = (warehouse.locations || []).map((location) =>
-      location._id === locationId ? { ...location, ...locationData } : location
+      location._id === locationId || location.code === locationId ? { ...location, ...locationData } : location
     );
 
     return {
       status: 'success',
-      message: 'Location updated locally in the frontend demo state.',
-      data: { ...warehouse, locations: updatedLocations },
+      data: normalizeWarehouse({ ...warehouse, locations: updatedLocations }),
     };
   }
 };

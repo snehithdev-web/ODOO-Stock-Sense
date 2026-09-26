@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ClipboardCheck, Save, X, AlertCircle } from 'lucide-react';
+import { fetchProductsApi } from '../products/productApi';
+import { getWarehouses } from '../warehouses/warehouseApi';
 
-const productCatalog = ['Steel Rods', 'Cement', 'Wire Mesh', 'Pipe Fittings', 'Paint', 'Sandbags'];
-const warehouseOptions = ['Main Warehouse', 'Production Warehouse', 'North Hub', 'South Hub'];
+const defaultProductCatalog = ['Steel Rods', 'Cement', 'Wire Mesh', 'Pipe Fittings', 'Paint', 'Sandbags'];
+const defaultWarehouseOptions = ['Main Warehouse', 'Production Warehouse', 'North Hub', 'South Hub'];
 
 const AdjustmentForm = ({ onClose, onSubmit, submitting = false }) => {
   const [formData, setFormData] = useState({
@@ -14,6 +16,34 @@ const AdjustmentForm = ({ onClose, onSubmit, submitting = false }) => {
     reason: '',
   });
   const [error, setError] = useState('');
+  const [productCatalog, setProductCatalog] = useState(defaultProductCatalog);
+  const [warehouseOptions, setWarehouseOptions] = useState(defaultWarehouseOptions);
+  const [productMap, setProductMap] = useState({});
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const [prodRes, whRes] = await Promise.all([
+          fetchProductsApi({ limit: 100 }),
+          getWarehouses(),
+        ]);
+        if (Array.isArray(prodRes?.data) && prodRes.data.length > 0) {
+          setProductCatalog(prodRes.data.map((p) => p.name));
+          const map = {};
+          prodRes.data.forEach((p) => {
+            map[p.name] = p;
+          });
+          setProductMap(map);
+        }
+        if (Array.isArray(whRes?.data) && whRes.data.length > 0) {
+          setWarehouseOptions(whRes.data.map((w) => w.name));
+        }
+      } catch {
+        // keep defaults
+      }
+    };
+    loadOptions();
+  }, []);
 
   const difference = useMemo(() => {
     const recordedValue = Number(formData.recordedQuantity);
@@ -27,7 +57,14 @@ const AdjustmentForm = ({ onClose, onSubmit, submitting = false }) => {
   }, [formData.physicalQuantity, formData.recordedQuantity]);
 
   const updateField = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'product' && productMap[value]) {
+        next.recordedQuantity = productMap[value].quantity;
+        next.location = productMap[value].location || 'Main Store';
+      }
+      return next;
+    });
   };
 
   const validateForm = () => {
@@ -56,14 +93,11 @@ const AdjustmentForm = ({ onClose, onSubmit, submitting = false }) => {
     const payload = {
       product: formData.product.trim(),
       warehouse: formData.warehouse.trim(),
-      location: formData.location.trim(),
+      location: formData.location.trim().toUpperCase(),
       recordedQuantity: Number(formData.recordedQuantity),
       physicalQuantity: Number(formData.physicalQuantity),
-      reason: formData.reason.trim(),
-      createdBy: 'Current User',
-      status: 'DRAFT',
-      createdAt: new Date().toISOString(),
-      difference,
+      countedQuantity: Number(formData.physicalQuantity),
+      reason: formData.reason.trim().toLowerCase(),
     };
 
     await onSubmit(payload);

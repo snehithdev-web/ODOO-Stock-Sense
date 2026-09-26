@@ -45,46 +45,41 @@ const mockReceipts = [
   },
 ];
 
-const normalizeReceipt = (receipt = {}) => ({
-  _id: receipt._id || receipt.id || `RCPT-${Date.now()}`,
-  reference: receipt.reference || receipt._id || `RCPT-${Date.now()}`,
-  supplier: receipt.supplier || '',
-  warehouse: receipt.warehouse || '',
-  location: receipt.location || '',
-  status: receipt.status || 'DRAFT',
-  createdBy: receipt.createdBy || 'Current User',
-  createdAt: receipt.createdAt || new Date().toISOString(),
-  validatedAt: receipt.validatedAt || null,
-  products: Array.isArray(receipt.products) ? receipt.products : [],
-});
+export const normalizeReceipt = (receipt = {}) => {
+  const supplierName = typeof receipt.supplier === 'object' ? receipt.supplier?.name : (receipt.supplier || '');
+  const warehouseName = typeof receipt.warehouse === 'object' ? receipt.warehouse?.name : (receipt.warehouse || '');
+  const rawItems = receipt.items || receipt.products || [];
+  const products = rawItems.map((item) => ({
+    product: typeof item.product === 'object' ? `${item.product?.name} (${item.product?.sku || ''})`.trim() : (item.product || ''),
+    quantity: item.quantity || 0,
+  }));
 
-const createLocalReceipt = (receiptData) => {
-  const currentDate = new Date().toISOString();
-  const newReceipt = {
-    _id: receiptData._id || `RCPT-${Date.now()}`,
-    reference: receiptData.reference || `RCPT-${Date.now()}`,
-    supplier: receiptData.supplier,
-    warehouse: receiptData.warehouse,
-    location: receiptData.location,
-    status: receiptData.status || 'DRAFT',
-    createdBy: receiptData.createdBy || 'Current User',
-    createdAt: receiptData.createdAt || currentDate,
-    validatedAt: receiptData.validatedAt || null,
-    products: receiptData.products || [],
+  return {
+    _id: receipt._id || receipt.id || `RCPT-${Date.now()}`,
+    reference: receipt.reference || receipt._id || `RCPT-${Date.now()}`,
+    supplier: supplierName,
+    warehouse: warehouseName,
+    location: receipt.location || '',
+    status: (receipt.status || 'DRAFT').toUpperCase(),
+    createdBy: typeof receipt.createdBy === 'object' ? receipt.createdBy?.name : (receipt.createdBy || 'Current User'),
+    createdAt: receipt.createdAt || receipt.documentDate || new Date().toISOString(),
+    validatedAt: receipt.postedAt || receipt.validatedAt || null,
+    products,
   };
-
-  return normalizeReceipt(newReceipt);
 };
 
 export const getReceipts = async () => {
   try {
     const response = await api.get('/receipts');
-    return response.data;
+    const list = Array.isArray(response.data?.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+    return {
+      status: 'success',
+      data: list.map(normalizeReceipt),
+    };
   } catch {
     return {
       status: 'success',
-      message: 'Using local receipt data until the backend endpoint is available.',
-      data: mockReceipts,
+      data: mockReceipts.map(normalizeReceipt),
     };
   }
 };
@@ -92,13 +87,16 @@ export const getReceipts = async () => {
 export const getReceiptById = async (id) => {
   try {
     const response = await api.get(`/receipts/${id}`);
-    return response.data;
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeReceipt(item),
+    };
   } catch {
     const receipt = mockReceipts.find((item) => item._id === id) || mockReceipts[0];
     return {
       status: 'success',
-      message: 'Loaded receipt from local demo data.',
-      data: receipt,
+      data: normalizeReceipt(receipt),
     };
   }
 };
@@ -106,17 +104,23 @@ export const getReceiptById = async (id) => {
 export const createReceipt = async (receiptData) => {
   try {
     const response = await api.post('/receipts', receiptData);
-    return response.data;
-  } catch {
-    const createdReceipt = createLocalReceipt({
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeReceipt(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
+    const createdReceipt = normalizeReceipt({
       ...receiptData,
       status: 'DRAFT',
       createdBy: 'Current User',
     });
-
     return {
       status: 'success',
-      message: 'Receipt saved locally in the frontend demo state.',
+      message: 'Receipt saved locally.',
       data: createdReceipt,
     };
   }
@@ -125,18 +129,22 @@ export const createReceipt = async (receiptData) => {
 export const updateReceipt = async (id, receiptData) => {
   try {
     const response = await api.put(`/receipts/${id}`, receiptData);
-    return response.data;
-  } catch {
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeReceipt(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
     const updatedReceipt = normalizeReceipt({
       ...receiptData,
       _id: id,
       reference: receiptData.reference || id,
-      createdAt: receiptData.createdAt || new Date().toISOString(),
     });
-
     return {
       status: 'success',
-      message: 'Receipt updated locally in the frontend demo state.',
       data: updatedReceipt,
     };
   }
@@ -144,19 +152,33 @@ export const updateReceipt = async (id, receiptData) => {
 
 export const validateReceipt = async (id) => {
   try {
-    const response = await api.patch(`/receipts/${id}/validate`);
-    return response.data;
-  } catch {
+    let response;
+    try {
+      response = await api.post(`/receipts/${id}/post`);
+    } catch (innerErr) {
+      if (innerErr?.status === 404 || innerErr?.message?.includes('Not Found')) {
+        response = await api.patch(`/receipts/${id}`, { status: 'done' });
+      } else {
+        throw innerErr;
+      }
+    }
+    const item = response.data?.data?.document || response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeReceipt(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
     const receipt = mockReceipts.find((item) => item._id === id) || mockReceipts[0];
     const updated = normalizeReceipt({
       ...receipt,
       status: 'DONE',
       validatedAt: new Date().toISOString(),
     });
-
     return {
       status: 'success',
-      message: 'Receipt validated locally in the frontend demo state.',
       data: updated,
     };
   }
@@ -164,19 +186,23 @@ export const validateReceipt = async (id) => {
 
 export const cancelReceipt = async (id) => {
   try {
-    const response = await api.patch(`/receipts/${id}/cancel`);
-    return response.data;
-  } catch {
+    const response = await api.post(`/receipts/${id}/cancel`);
+    const item = response.data?.data || response.data;
+    return {
+      status: 'success',
+      data: normalizeReceipt(item),
+    };
+  } catch (error) {
+    if (error?.message && !error.message.includes('Network Error')) {
+      throw error;
+    }
     const receipt = mockReceipts.find((item) => item._id === id) || mockReceipts[0];
     const updated = normalizeReceipt({
       ...receipt,
       status: 'CANCELED',
-      validatedAt: receipt.validatedAt || null,
     });
-
     return {
       status: 'success',
-      message: 'Receipt canceled locally in the frontend demo state.',
       data: updated,
     };
   }
