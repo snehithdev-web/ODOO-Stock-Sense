@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from './StatusBadge';
-import { Package, LogOut, User, Boxes, ReceiptText, Truck, ArrowRightLeft, Warehouse } from 'lucide-react';
+import { Package, LogOut, User, Boxes, ReceiptText, Truck, ArrowRightLeft, ClipboardCheck, Activity, Warehouse } from 'lucide-react';
 
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -44,6 +44,14 @@ const Navbar = () => {
               <NavLink to="/transfers" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
                 <ArrowRightLeft size={16} />
                 <span>Transfers</span>
+              </NavLink>
+              <NavLink to="/adjustments" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+                <ClipboardCheck size={16} />
+                <span>Adjustments</span>
+              </NavLink>
+              <NavLink to="/move-history" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+                <Activity size={16} />
+                <span>Move History</span>
               </NavLink>
               <NavLink to="/settings/warehouse" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
                 <Warehouse size={16} />

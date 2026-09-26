@@ -13,6 +13,8 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import ReceiptsPage from './pages/ReceiptsPage';
 import DeliveryOrdersPage from './pages/DeliveryOrdersPage';
 import TransfersPage from './pages/TransfersPage';
+import AdjustmentsPage from './pages/AdjustmentsPage';
+import MoveHistoryPage from './pages/MoveHistoryPage';
 import WarehouseSettingsPage from './pages/WarehouseSettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -66,6 +68,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <TransfersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/adjustments"
+            element={
+              <ProtectedRoute>
+                <AdjustmentsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/move-history"
+            element={
+              <ProtectedRoute>
+                <MoveHistoryPage />
               </ProtectedRoute>
             }
           />
