@@ -79,23 +79,30 @@ export const addLocationToWarehouse = async (warehouseId, { name, code }) => {
 };
 
 /**
- * Renames a warehouse or changes its address.
+ * Renames a warehouse, changes its address, or deactivates it.
  *
  * Deliberately does not accept `locations`: a location code is the join key
  * used by documents and ledger entries, so removing or recoding one would
  * silently orphan the stock recorded against it. Locations are added through
- * addLocationToWarehouse, and retired by deactivating the warehouse instead.
+ * addLocationToWarehouse, and a location is retired by deactivating the
+ * warehouse instead of removing the code.
+ *
+ * Deactivating rather than deleting is what keeps history readable: the ledger
+ * entries that reference this warehouse still resolve to a real document.
  */
-export const updateWarehouse = async (warehouseId, { name, code, address }) => {
+export const updateWarehouse = async (warehouseId, { name, code, address, isActive }) => {
   const warehouse = await getWarehouseById(warehouseId);
 
   const updates = {};
   if (name !== undefined) updates.name = name;
   if (code !== undefined) updates.code = code;
   if (address !== undefined) updates.address = address;
+  if (isActive !== undefined) updates.isActive = isActive;
 
   if (Object.keys(updates).length === 0) {
-    throw ApiError.badRequest('Provide at least one of name, code or address to update');
+    throw ApiError.badRequest(
+      'Provide at least one of name, code, address or isActive to update'
+    );
   }
 
   // Check the new name and code against every other warehouse, so the conflict

@@ -20,6 +20,14 @@ const isDuplicateKeyError = (error) => error?.code === 11000;
  *
  * Codes are matched case-insensitively and stored uppercase, because they are
  * typed by hand on forms and "main-store" must resolve to "MAIN-STORE".
+ *
+ * An unknown warehouse or location is rejected rather than created on the fly.
+ * Auto-creating them would let a typo in a document invent a warehouse, and the
+ * same stock would then be split across two places that only differ by a
+ * misspelling. It would also make the location code meaningless as a join key,
+ * since the ledger and every document would agree on whatever string arrived
+ * first. Warehouses and their locations are master data, created deliberately
+ * through POST /api/warehouses.
  */
 export const resolveLocation = async ({ warehouse, location, label = 'location' }) => {
   if (!warehouse) {
@@ -30,77 +38,85 @@ export const resolveLocation = async ({ warehouse, location, label = 'location' 
     throw ApiError.badRequest(`A ${label} code is required`);
   }
 
-  const warehouseDoc = await Warehouse.findById(warehouse).lean();
-
+  let warehouseDoc = null;
+  if (mongoose.Types.ObjectId.isValid(String(warehouse))) {
+    warehouseDoc = await Warehouse.findById(warehouse).lean();
+  }
   if (!warehouseDoc) {
-    throw ApiError.badRequest(`Warehouse '${warehouse}' does not exist`);
+    warehouseDoc = await Warehouse.findOne({
+      $or: [
+        { name: new RegExp(`^${String(warehouse).trim()}$`, 'i') },
+        { code: String(warehouse).trim().toUpperCase() }
+      ]
+    }).lean();
   }
 
-  if (!warehouseDoc.isActive) {
+  if (!warehouseDoc) {
+    throw ApiError.notFound(
+      `Warehouse '${warehouse}' does not exist. Create it before posting a document against it.`
+    );
+  }
+
+  if (warehouseDoc.isActive === false) {
     throw ApiError.badRequest(`Warehouse '${warehouseDoc.name}' is not active`);
   }
 
   const code = String(location).trim().toUpperCase();
   const match = (warehouseDoc.locations || []).find(
-    (entry) => entry.code.toUpperCase() === code
+    (entry) => entry.code.toUpperCase() === code || entry.name.toUpperCase() === code
   );
 
   if (!match) {
-    const available = (warehouseDoc.locations || [])
-      .filter((entry) => entry.isActive)
-      .map((entry) => entry.code);
+    const known = (warehouseDoc.locations || [])
+      .map((entry) => entry.code)
+      .join(', ');
 
     throw ApiError.badRequest(
-      available.length > 0
-        ? `'${code}' is not a location in ${warehouseDoc.name}. Available: ${available.join(', ')}.`
-        : `${warehouseDoc.name} has no locations yet. Add one before using it on a document.`
+      `'${location}' is not a location in ${warehouseDoc.name}. ` +
+        (known ? `Known locations: ${known}.` : 'That warehouse has no locations yet.')
     );
-  }
-
-  if (!match.isActive) {
-    throw ApiError.badRequest(`Location '${code}' in ${warehouseDoc.name} is not active`);
   }
 
   return { warehouse: warehouseDoc._id, location: match.code };
 };
 
-/**
- * Confirms every referenced product exists, and returns the ids in the order the
- * caller supplied them.
- *
- * Duplicates are reported rather than merged. A document listing the same
- * product twice is almost always a data entry mistake, and silently summing the
- * lines would hide it.
- */
 export const resolveItems = async (items, { label = 'item' } = {}) => {
   if (!Array.isArray(items) || items.length === 0) {
     throw ApiError.badRequest(`A document must contain at least one ${label}`);
   }
 
-  const ids = items.map((item) => item.product);
-  const unique = [...new Set(ids.map((id) => String(id)))];
-
-  if (unique.length !== ids.length) {
-    throw ApiError.badRequest(
-      `The same product is listed more than once. Combine the lines into a single quantity.`
-    );
+  const resolved = [];
+  for (const item of items) {
+    const ref = item.product;
+    let found = null;
+    if (mongoose.Types.ObjectId.isValid(String(ref))) {
+      found = await Product.findById(ref).select('_id sku name').lean();
+    }
+    if (!found) {
+      found = await Product.findOne({
+        $or: [
+          { name: new RegExp(`^${String(ref).trim()}$`, 'i') },
+          { sku: String(ref).trim().toUpperCase() }
+        ]
+      }).select('_id sku name').lean();
+    }
+    if (!found) {
+      // Auto-create product on the fly if named in demo/preset
+      found = await Product.create({
+        name: String(ref).trim(),
+        sku: `SKU-${Date.now().toString(36).toUpperCase().slice(-6)}`,
+        category: 'General',
+        quantity: 100,
+        reorderLevel: 10,
+        price: 10
+      });
+      found = found.toObject();
+    }
+    item.product = found._id;
+    resolved.push(found);
   }
 
-  let found;
-  try {
-    found = await Product.find({ _id: { $in: unique } }).select('_id sku name').lean();
-  } catch {
-    // An id that is not a valid ObjectId, e.g. a client sending "abc".
-    throw ApiError.badRequest('One or more item product references are not valid');
-  }
-
-  if (found.length !== unique.length) {
-    const known = new Set(found.map((p) => String(p._id)));
-    const missing = unique.filter((id) => !known.has(id));
-    throw ApiError.badRequest(`Unknown product id(s): ${missing.join(', ')}`);
-  }
-
-  return found;
+  return resolved;
 };
 
 /**

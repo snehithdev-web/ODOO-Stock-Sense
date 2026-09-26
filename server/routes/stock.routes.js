@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   listMovements,
+  getMovementById,
   getStockByLocation,
   getStockTrail,
   reconcile,
@@ -30,6 +31,19 @@ router.get('/movements', async (req, res, next) => {
       message: 'Stock movements retrieved successfully',
       data: movements,
       pagination
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/movements/:id', async (req, res, next) => {
+  try {
+    const movement = await getMovementById(req.params.id);
+
+    return sendSuccess(res, {
+      message: 'Stock movement retrieved successfully',
+      data: movement
     });
   } catch (error) {
     next(error);

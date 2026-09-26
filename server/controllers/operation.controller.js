@@ -124,7 +124,7 @@ export const createOperationController = (service, { label }) => {
           message: result.replayed
             ? `${Title} ${document.reference} was already posted; stock is unchanged`
             : `${Title} ${document.reference} posted. ${result.entries} stock movement(s) recorded.`,
-          data: { document, movements: result.entries, replayed: result.replayed }
+          data: { document, movementCount: result.entries, replayed: result.replayed }
         });
       } catch (error) {
         next(error);

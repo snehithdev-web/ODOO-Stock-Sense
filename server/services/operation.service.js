@@ -19,6 +19,15 @@ import { isDuplicateKeyError, parseObjectId } from './operationRefs.service.js';
 const MAX_REFERENCE_ATTEMPTS = 5;
 
 /**
+ * Refs every document type has, so each type only has to declare the places it
+ * holds stock in.
+ */
+const DEFAULT_POPULATE = [
+  ['createdBy', 'name email role'],
+  ['items.product', 'name sku unit price location']
+];
+
+/**
  * Builds the service object for one document type.
  *
  * @param {object}   args
@@ -31,6 +40,12 @@ const MAX_REFERENCE_ATTEMPTS = 5;
  * @param {Function} [args.beforePost]     Async (document) => document, run after validation and
  *                                         before the ledger is written.
  * @param {object}   [args.listFilter]     Extra query params accepted by list().
+ * @param {Array}    [args.populate]       [path, select] pairs applied to every read. These are
+ *                                         per type because a receipt has a single "warehouse" while
+ *                                         a transfer has "from.warehouse" and "to.warehouse":
+ *                                         populating a path a model does not have is a hard
+ *                                         error, not a no-op, so a shared list would break the
+ *                                         three types it does not fit.
  */
 export const createOperationService = ({
   Model,
@@ -40,11 +55,16 @@ export const createOperationService = ({
   prepareInput,
   toMovements,
   beforePost,
-  listFilter = () => ({})
+  listFilter = () => ({}),
+  populate = DEFAULT_POPULATE
 }) => {
+  /** Resolves refs so a caller can render a row without a second round trip. */
+  const withRefs = (query) =>
+    populate.reduce((acc, [path, select]) => acc.populate(path, select), query);
+
   const loadDocument = async (id) => {
     const _id = parseObjectId(id, `${label} id`);
-    const document = await Model.findById(_id);
+    const document = await withRefs(Model.findById(_id));
 
     if (!document) {
       throw ApiError.notFound(`${label[0].toUpperCase()}${label.slice(1)} not found`);
@@ -153,7 +173,7 @@ export const createOperationService = ({
       }
 
       const [documents, total] = await Promise.all([
-        Model.find(filter)
+        withRefs(Model.find(filter))
           .sort({ documentDate: -1, _id: -1 })
           .skip(skip)
           .limit(limit)

@@ -3,7 +3,8 @@ import { AlertCircle, Plus, Search, Trash2, RefreshCw, Eye, Truck, PackageCheck,
 import StatusBadge from '../../components/StatusBadge';
 import DeliveryForm from './DeliveryForm';
 import DeliveryDetails from './DeliveryDetails';
-import { cancelDelivery, createDelivery, getDeliveries, packDelivery, pickDelivery, validateDelivery } from './deliveryApi';
+import { advanceDelivery, cancelDelivery, createDelivery, getDeliveries, validateDelivery } from './deliveryApi';
+import { DOCUMENT_STATUS } from '../../constants/operations';
 
 const DeliveryList = () => {
   const [deliveries, setDeliveries] = useState([]);
@@ -45,37 +46,35 @@ const DeliveryList = () => {
     }
   };
 
-  const handlePick = async (id) => {
+  /**
+   * Applies a status change to one delivery, keeping the row and the open
+   * details panel in step with what the API returned.
+   *
+   * "Pick" and "Pack" are the two steps an operator recognises from the floor,
+   * and they are the "waiting" and "ready" states of the API's workflow. The
+   * client asks for the next state rather than asserting it, so the server's
+   * state machine stays the authority on which moves are legal.
+   */
+  const advance = async (id, status, failureMessage) => {
     try {
       setActionLoading(true);
-      const response = await pickDelivery(id);
+      const response = await advanceDelivery(id, status);
       const updated = response?.data;
+
       setDeliveries((current) =>
         current.map((delivery) => (delivery._id === id ? { ...delivery, ...updated } : delivery))
       );
       setSelectedDelivery((current) => (current && current._id === id ? { ...current, ...updated } : current));
     } catch (err) {
-      setError(err.message || 'Failed to pick delivery');
+      setError(err.message || failureMessage);
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handlePack = async (id) => {
-    try {
-      setActionLoading(true);
-      const response = await packDelivery(id);
-      const updated = response?.data;
-      setDeliveries((current) =>
-        current.map((delivery) => (delivery._id === id ? { ...delivery, ...updated } : delivery))
-      );
-      setSelectedDelivery((current) => (current && current._id === id ? { ...current, ...updated } : current));
-    } catch (err) {
-      setError(err.message || 'Failed to pack delivery');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const handlePick = (id) => advance(id, DOCUMENT_STATUS.WAITING, 'Failed to mark delivery as picked');
+
+  const handlePack = (id) => advance(id, DOCUMENT_STATUS.READY, 'Failed to mark delivery as ready');
 
   const handleValidate = async (id) => {
     try {

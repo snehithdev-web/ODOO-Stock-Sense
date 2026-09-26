@@ -65,6 +65,28 @@ export const listMovements = async (query = {}) => {
   return { movements, pagination: buildPaginationMeta({ page, limit, total }) };
 };
 
+export const getMovementById = async (id) => {
+  let movement = null;
+  if (id.match(/^[0-9a-fA-F]{24}$/)) {
+    movement = await StockLedger.findById(id)
+      .populate('product', 'name sku unit')
+      .populate('warehouse', 'name code')
+      .populate('performedBy', 'name role')
+      .lean();
+  }
+  if (!movement) {
+    movement = await StockLedger.findOne({ operationRef: id })
+      .populate('product', 'name sku unit')
+      .populate('warehouse', 'name code')
+      .populate('performedBy', 'name role')
+      .lean();
+  }
+  if (!movement) {
+    throw ApiError.notFound('Movement not found');
+  }
+  return movement;
+};
+
 /**
  * Where a single product is held, with the balance at each place.
  */

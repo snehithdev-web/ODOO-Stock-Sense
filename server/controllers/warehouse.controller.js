@@ -92,14 +92,19 @@ export const addLocation = async (req, res, next) => {
   }
 };
 
-// @desc    Rename a warehouse or change its address
+// @desc    Rename a warehouse, change its address, or deactivate it
 // @route   PUT /api/warehouses/:id
 // @access  Inventory manager
 export const updateWarehouseDetails = async (req, res, next) => {
   try {
-    const { name, code, address } = req.body;
+    const { name, code, address, isActive } = req.body;
 
-    const warehouse = await updateWarehouse(req.params.id, { name, code, address });
+    const warehouse = await updateWarehouse(req.params.id, {
+      name,
+      code,
+      address,
+      isActive: parseBooleanFlag(isActive)
+    });
 
     return sendSuccess(res, {
       message: 'Warehouse updated successfully',

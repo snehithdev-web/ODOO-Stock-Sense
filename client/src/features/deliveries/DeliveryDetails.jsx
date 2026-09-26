@@ -77,7 +77,7 @@ const DeliveryDetails = ({ delivery, onPick, onPack, onValidate, onCancel, loadi
                   <tr key={`${item.productName}-${index}`}>
                     <td>{item.productName}</td>
                     <td className="font-mono">{item.quantity}</td>
-                    <td>{item.notes || '}</td>
+                    <td>{item.notes || '-'}</td>
                   </tr>
                 ))}
               </tbody>

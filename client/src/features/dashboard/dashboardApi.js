@@ -1,6 +1,6 @@
 import api from '../../services/api';
 import { mapMovement, mapLowStockProduct, mapOperation } from '../../services/inventoryApi';
-import { parseDashboardFilters } from './dashboardFilters';
+import { parseDashboardFilters } from './dashboardQuery';
 
 /**
  * Dashboard reads.

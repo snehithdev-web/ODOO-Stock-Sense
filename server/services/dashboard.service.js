@@ -147,7 +147,7 @@ const resolveProductIds = async (category) => {
  * location at the top level; a transfer carries both sides, so it has to match
  * on either.
  */
-const buildDocumentFilter = async ({ type, filters, place, productIds }) => {
+const buildDocumentFilter = ({ type, filters = {}, place, productIds }) => {
   const filter = {};
 
   if (filters.status) {
@@ -217,6 +217,12 @@ const LOW_STOCK_EXPR = { $expr: { $lte: ['$quantity', '$reorderLevel'] } };
  * "Total Products in Stock" label, rather than the size of the catalogue. The
  * low/out-of-stock figure uses the same threshold as the product list filter, so
  * the two views can never disagree.
+ *
+ * The three document counts are deliberately the pending set whatever the status
+ * filter says, because the cards are labelled "Pending" and "Scheduled". Filtering
+ * the page to a status narrows the tables below; it does not redefine what the
+ * headline figures mean. The place and category filters do apply, so the counts
+ * are scoped to what is being looked at.
  */
 const getSummary = async ({ place, productIds }) => {
   const productFilter = {};
@@ -226,9 +232,9 @@ const getSummary = async ({ place, productIds }) => {
     await Promise.all([
       Product.countDocuments({ ...productFilter, quantity: { $gt: 0 } }),
       Product.countDocuments({ ...productFilter, ...LOW_STOCK_EXPR }),
-      Receipt.countDocuments(await buildDocumentFilter({ type: OPERATION_TYPE.RECEIPT, place, productIds })),
-      Delivery.countDocuments(await buildDocumentFilter({ type: OPERATION_TYPE.DELIVERY, place, productIds })),
-      Transfer.countDocuments(await buildDocumentFilter({ type: OPERATION_TYPE.TRANSFER, place, productIds }))
+      Receipt.countDocuments(buildDocumentFilter({ type: OPERATION_TYPE.RECEIPT, place, productIds })),
+      Delivery.countDocuments(buildDocumentFilter({ type: OPERATION_TYPE.DELIVERY, place, productIds })),
+      Transfer.countDocuments(buildDocumentFilter({ type: OPERATION_TYPE.TRANSFER, place, productIds }))
     ]);
 
   return {
@@ -252,16 +258,29 @@ const getLowStockProducts = async ({ productIds }) => {
     .lean();
 };
 
-/** Pending documents of one type, newest first. */
+/**
+ * Pending documents of one type, newest first.
+ *
+ * The place each type keeps stock in differs, and populating a path a model does
+ * not declare is an error rather than a no-op, so the populated paths are chosen
+ * per type instead of being applied to all three.
+ */
 const getPendingDocuments = async ({ Model, type, filters, place, productIds }) => {
-  const filter = await buildDocumentFilter({ type, filters, place, productIds });
+  const filter = buildDocumentFilter({ type, filters, place, productIds });
 
-  return Model.find(filter)
+  const query = Model.find(filter)
     .sort({ documentDate: -1, _id: -1 })
     .limit(PANEL_LIMIT)
-    .populate('warehouse', 'name code')
-    .populate('items.product', 'name sku unit')
-    .lean();
+    .populate('items.product', 'name sku unit');
+
+  if (type === OPERATION_TYPE.TRANSFER) {
+    return query
+      .populate('from.warehouse', 'name code')
+      .populate('to.warehouse', 'name code')
+      .lean();
+  }
+
+  return query.populate('warehouse', 'name code').lean();
 };
 
 /** The latest ledger entries, which is the dashboard's activity feed. */

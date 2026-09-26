@@ -264,9 +264,16 @@ export const transitionOperation = async (path, id, status, { counterparty } = {
 export const postOperation = async (path, id, { counterparty } = {}) => {
   const response = await api.post(`/${path}/${id}/post`);
 
+  // Posting answers with the document nested beside a count of the ledger
+  // entries it wrote, so the document is the part that maps back to a row. The
+  // entries themselves are readable from the ledger, not from this response.
+  const posted = response.data?.data;
+
   return {
     ...response.data,
-    data: response.data?.data ? mapOperation(response.data.data, { counterparty }) : null
+    data: posted?.document ? mapOperation(posted.document, { counterparty }) : null,
+    movementCount: posted?.movementCount ?? 0,
+    replayed: Boolean(posted?.replayed)
   };
 };
 
