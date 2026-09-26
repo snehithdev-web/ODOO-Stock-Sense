@@ -671,6 +671,144 @@ body {
   gap: 0.75rem;
 }
 
+.receipt-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.receipt-items-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.receipt-item-chip {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(99, 102, 241, 0.12);
+  color: #c7d2fe;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 999px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.72rem;
+}
+
+.receipt-location-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.receipt-location-cell span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.receipt-modal-card {
+  max-width: 760px;
+}
+
+.receipt-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.receipt-products-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.receipt-products-header h4 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.receipt-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.receipt-product-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(100px, 0.6fr) 40px;
+  gap: 0.75rem;
+  align-items: end;
+  padding: 0.75rem;
+  background-color: rgba(15, 23, 42, 0.45);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.receipt-product-name, .receipt-qty {
+  margin-bottom: 0;
+}
+
+.receipt-remove-btn {
+  margin-bottom: 0.25rem;
+}
+
+.receipt-details-modal {
+  max-width: 760px;
+}
+
+.receipt-details-content {
+  padding: 1.5rem;
+}
+
+.receipt-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.detail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: rgba(17, 24, 39, 0.8);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+}
+
+.detail-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.details-section-title {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.75rem;
+}
+
+.receipt-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.detail-note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.success-note {
+  color: #6ee7b7;
+}
+
 /* Product Details View */
 .product-details-content {
   padding: 1.5rem;
