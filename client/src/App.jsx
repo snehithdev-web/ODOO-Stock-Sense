@@ -15,6 +15,7 @@ import DeliveryOrdersPage from './pages/DeliveryOrdersPage';
 import TransfersPage from './pages/TransfersPage';
 import AdjustmentsPage from './pages/AdjustmentsPage';
 import MoveHistoryPage from './pages/MoveHistoryPage';
+import DashboardPage from './pages/DashboardPage';
 import WarehouseSettingsPage from './pages/WarehouseSettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -68,6 +69,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <TransfersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardPage />
               </ProtectedRoute>
             }
           />

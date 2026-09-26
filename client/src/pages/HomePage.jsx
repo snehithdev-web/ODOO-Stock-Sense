@@ -2,9 +2,12 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import StatusBadge from '../components/StatusBadge';
+import { useAuth } from '../context/AuthContext';
 import { Package, ShieldCheck, Database, ArrowRight, Activity } from 'lucide-react';
 
 const HomePage = () => {
+  const { isAuthenticated } = useAuth();
+
   return (
     <MainLayout>
       <div className="home-container">
@@ -21,9 +24,9 @@ const HomePage = () => {
           </p>
 
           <div className="hero-actions">
-            <Link to="/products" className="btn btn-primary btn-lg">
+            <Link to={isAuthenticated ? '/dashboard' : '/products'} className="btn btn-primary btn-lg">
               <Package size={20} />
-              <span>Explore Products</span>
+              <span>{isAuthenticated ? 'Open Dashboard' : 'Explore Products'}</span>
               <ArrowRight size={18} />
             </Link>
           </div>
