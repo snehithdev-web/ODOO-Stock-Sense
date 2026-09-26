@@ -474,6 +474,14 @@ body {
   color: var(--text-main);
 }
 
+/* Heading for the page currently being viewed, e.g. "Welcome Back". */
+.auth-page-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-top: 0.75rem;
+}
+
 .auth-subtitle {
   font-size: 0.875rem;
   color: var(--text-muted);

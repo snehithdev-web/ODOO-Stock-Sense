@@ -13,6 +13,7 @@ const AuthLayout = ({ children, title, subtitle }) => {
             </div>
             <h1 className="auth-title">StockSense</h1>
           </Link>
+          {title && <h2 className="auth-page-title">{title}</h2>}
           <p className="auth-subtitle">{subtitle}</p>
         </div>
         {children}

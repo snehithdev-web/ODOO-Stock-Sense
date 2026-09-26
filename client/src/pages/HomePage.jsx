@@ -1,13 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
-import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
-import { Package, ShieldCheck, Database, Layers, ArrowRight, Activity } from 'lucide-react';
+import { Package, ShieldCheck, Database, ArrowRight, Activity } from 'lucide-react';
 
 const HomePage = () => {
-  const { user } = useAuth();
-
   return (
     <MainLayout>
       <div className="home-container">

@@ -1,5 +1,29 @@
 import User from '../models/user.model.js';
+import ApiError from '../utils/ApiError.js';
 import { generateToken } from '../utils/jwt.js';
+
+/** Failed verify-otp attempts allowed before the code is discarded. */
+const MAX_OTP_ATTEMPTS = 5;
+
+/** Lifetime of a generated OTP. */
+const OTP_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * Generic reply used for every forgot-password request.
+ *
+ * The endpoint used to answer 444 for an unknown address and 200 for a known
+ * one, which let anyone enumerate registered accounts. Both cases now return
+ * the same body so the response reveals nothing.
+ */
+const GENERIC_OTP_MESSAGE =
+  'If an account exists for that email, an OTP has been sent.';
+
+const publicUser = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+});
 
 /**
  * Register a new user
@@ -7,9 +31,7 @@ import { generateToken } from '../utils/jwt.js';
 export const registerUser = async ({ name, email, password, role }) => {
   const existingUser = await User.findOne({ email });
   if (existingUser) {
-    const error = new Error('User with this email already exists.');
-    error.statusCode = 400;
-    throw error;
+    throw ApiError.conflict('User with this email already exists.');
   }
 
   const user = await User.create({
@@ -19,16 +41,9 @@ export const registerUser = async ({ name, email, password, role }) => {
     role: role || 'inventory_manager',
   });
 
-  const token = generateToken(user._id, user.role);
-
   return {
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    },
-    token,
+    user: publicUser(user),
+    token: generateToken(user._id, user.role),
   };
 };
 
@@ -37,50 +52,42 @@ export const registerUser = async ({ name, email, password, role }) => {
  */
 export const loginUser = async ({ email, password }) => {
   if (!email || !password) {
-    const error = new Error('Please provide email and password.');
-    error.statusCode = 400;
-    throw error;
+    throw ApiError.badRequest('Please provide email and password.');
   }
 
   const user = await User.findOne({ email }).select('+password');
 
   if (!user || !(await user.matchPassword(password))) {
-    const error = new Error('Invalid email or password.');
-    error.statusCode = 401;
-    throw error;
+    throw ApiError.unauthorized('Invalid email or password.');
   }
 
-  const token = generateToken(user._id, user.role);
-
   return {
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    },
-    token,
+    user: publicUser(user),
+    token: generateToken(user._id, user.role),
   };
 };
 
 /**
  * Generate OTP for Forgot Password flow
+ *
+ * The OTP itself is only handed back to the caller outside production. In
+ * development it is returned so the flow can be tested without a mail
+ * transport; in production it must never leave the server.
  */
 export const generateForgotPasswordOtp = async (email) => {
-  const user = await User.findOne({ email });
+  const user = email ? await User.findOne({ email }) : null;
 
   if (!user) {
-    const error = new Error('No user account found with this email address.');
-    error.statusCode = 444;
-    throw error;
+    // Same response as the success path, so the endpoint cannot be used to
+    // discover which addresses are registered.
+    return { message: GENERIC_OTP_MESSAGE };
   }
 
-  // Generate 6-digit OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expireTime = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
   user.resetPasswordOtp = otp;
-  user.resetPasswordOtpExpire = expireTime;
+  user.resetPasswordOtpExpire = new Date(Date.now() + OTP_TTL_MS);
+  user.resetPasswordOtpAttempts = 0;
   user.isOtpVerified = false;
 
   await user.save({ validateBeforeSave: false });
@@ -88,31 +95,53 @@ export const generateForgotPasswordOtp = async (email) => {
   console.log(`[AUTH SERVICE - DEV MODE OTP]: Email: ${email} | OTP: ${otp}`);
 
   return {
-    message: 'OTP sent successfully to your email (Visible in Dev Mode/Console).',
-    devOtp: otp,
+    message: GENERIC_OTP_MESSAGE,
+    ...(isProduction() ? {} : { devOtp: otp }),
   };
 };
 
 /**
  * Verify OTP Code
+ *
+ * Each failure increments a counter on the user document. Once the counter
+ * reaches MAX_OTP_ATTEMPTS the stored code is cleared, so a six digit code
+ * cannot be exhausted by brute force within its expiry window.
  */
 export const verifyOtpCode = async ({ email, otp }) => {
-  const user = await User.findOne({ email }).select('+resetPasswordOtp +resetPasswordOtpExpire');
+  const user = await User.findOne({ email }).select(
+    '+resetPasswordOtp +resetPasswordOtpExpire +resetPasswordOtpAttempts'
+  );
 
   if (!user) {
-    const error = new Error('User not found.');
-    error.statusCode = 404;
-    throw error;
+    throw ApiError.badRequest('Invalid or expired OTP code.');
   }
 
   if (
     !user.resetPasswordOtp ||
-    user.resetPasswordOtp !== otp ||
-    user.resetPasswordOtpExpire < new Date()
+    user.resetPasswordOtpExpire < new Date() ||
+    user.resetPasswordOtpAttempts >= MAX_OTP_ATTEMPTS
   ) {
-    const error = new Error('Invalid or expired OTP code.');
-    error.statusCode = 400;
-    throw error;
+    throw ApiError.badRequest('Invalid or expired OTP code.');
+  }
+
+  if (user.resetPasswordOtp !== String(otp)) {
+    user.resetPasswordOtpAttempts += 1;
+
+    // Discard the code once the budget is used up so the remaining
+    // combinations in the window become unreachable.
+    if (user.resetPasswordOtpAttempts >= MAX_OTP_ATTEMPTS) {
+      user.resetPasswordOtp = undefined;
+      user.resetPasswordOtpExpire = undefined;
+    }
+
+    await user.save({ validateBeforeSave: false });
+
+    const attemptsLeft = Math.max(MAX_OTP_ATTEMPTS - user.resetPasswordOtpAttempts, 0);
+    throw ApiError.badRequest(
+      attemptsLeft > 0
+        ? `Invalid or expired OTP code. ${attemptsLeft} attempt(s) remaining.`
+        : 'Invalid or expired OTP code. Request a new one.'
+    );
   }
 
   user.isOtpVerified = true;
@@ -123,34 +152,44 @@ export const verifyOtpCode = async ({ email, otp }) => {
 
 /**
  * Reset password using verified OTP
+ *
+ * The code must have been confirmed through verifyOtpCode first. Previously
+ * this only re-checked the code value, so the verification step could be
+ * skipped entirely and the unused isOtpVerified flag was dead state.
  */
 export const resetUserPassword = async ({ email, otp, newPassword }) => {
+  if (!newPassword || String(newPassword).length < 6) {
+    throw ApiError.badRequest('Password must be at least 6 characters.');
+  }
+
   const user = await User.findOne({ email }).select(
-    '+resetPasswordOtp +resetPasswordOtpExpire +isOtpVerified'
+    '+resetPasswordOtp +resetPasswordOtpExpire +isOtpVerified +resetPasswordOtpAttempts'
   );
 
   if (!user) {
-    const error = new Error('User not found.');
-    error.statusCode = 404;
-    throw error;
+    throw ApiError.badRequest('Invalid or expired OTP code.');
   }
 
-  if (
-    !user.resetPasswordOtp ||
-    user.resetPasswordOtp !== otp ||
-    user.resetPasswordOtpExpire < new Date()
-  ) {
-    const error = new Error('Invalid or expired OTP code.');
-    error.statusCode = 400;
-    throw error;
+  const codeIsValid =
+    user.resetPasswordOtp &&
+    user.resetPasswordOtpExpire >= new Date() &&
+    user.resetPasswordOtpAttempts < MAX_OTP_ATTEMPTS;
+
+  if (!codeIsValid || user.resetPasswordOtp !== String(otp) || !user.isOtpVerified) {
+    throw ApiError.badRequest('Invalid or expired OTP code.');
   }
 
   user.password = newPassword;
   user.resetPasswordOtp = undefined;
   user.resetPasswordOtpExpire = undefined;
-  user.isOtpVerified = undefined;
+  user.resetPasswordOtpAttempts = 0;
+  user.isOtpVerified = false;
 
   await user.save();
 
   return { message: 'Password has been reset successfully. You can now login.' };
 };
+
+function isProduction() {
+  return process.env.NODE_ENV === 'production';
+}

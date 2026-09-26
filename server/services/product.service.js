@@ -1,18 +1,29 @@
 import Product from '../models/product.model.js';
+import ApiError from '../utils/ApiError.js';
+import { buildPagination, buildPaginationMeta, escapeRegex } from '../utils/query.js';
 
 /**
  * Fetch all products with search & category filter
  */
 export const getAllProducts = async (queryParams = {}) => {
-  const { search, category, page = 1, limit = 50 } = queryParams;
+  const { search, category } = queryParams;
+
+  // Clamped, unlike a raw Number(query.limit), so a caller cannot ask for an
+  // unbounded result set.
+  const { page, limit, skip } = buildPagination(queryParams);
 
   const filter = {};
 
   if (search) {
+    // The user supplied value is matched literally. Passing it straight into
+    // $regex made a value such as "[" throw inside Mongo, which surfaced as a
+    // 500, and let ".*" behave as a wildcard.
+    const pattern = escapeRegex(search);
+
     filter.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { sku: { $regex: search, $options: 'i' } },
-      { category: { $regex: search, $options: 'i' } },
+      { name: { $regex: pattern, $options: 'i' } },
+      { sku: { $regex: pattern, $options: 'i' } },
+      { category: { $regex: pattern, $options: 'i' } },
     ];
   }
 
@@ -20,22 +31,18 @@ export const getAllProducts = async (queryParams = {}) => {
     filter.category = category;
   }
 
-  const skip = (Number(page) - 1) * Number(limit);
-
   const [products, total] = await Promise.all([
     Product.find(filter)
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(Number(limit)),
+      .limit(limit),
     Product.countDocuments(filter),
   ]);
 
   return {
     products,
-    total,
-    page: Number(page),
-    pages: Math.ceil(total / Number(limit)),
+    pagination: buildPaginationMeta({ page, limit, total }),
   };
 };
 
@@ -45,9 +52,7 @@ export const getAllProducts = async (queryParams = {}) => {
 export const getProductById = async (id) => {
   const product = await Product.findById(id).populate('createdBy', 'name email');
   if (!product) {
-    const error = new Error('Product not found');
-    error.statusCode = 404;
-    throw error;
+    throw ApiError.notFound('Product not found');
   }
   return product;
 };
@@ -58,19 +63,19 @@ export const getProductById = async (id) => {
 export const createProduct = async (productData, userId) => {
   const { sku } = productData;
 
-  const existingProduct = await Product.findOne({ sku: sku.toUpperCase() });
-  if (existingProduct) {
-    const error = new Error(`Product with SKU '${sku}' already exists.`);
-    error.statusCode = 400;
-    throw error;
+  if (!sku) {
+    throw ApiError.badRequest('Please provide product SKU / Code');
   }
 
-  const product = await Product.create({
+  const existingProduct = await Product.findOne({ sku: sku.toUpperCase() });
+  if (existingProduct) {
+    throw ApiError.conflict(`Product with SKU '${sku}' already exists.`);
+  }
+
+  return Product.create({
     ...productData,
     createdBy: userId,
   });
-
-  return product;
 };
 
 /**
@@ -84,9 +89,7 @@ export const updateProduct = async (id, updateData) => {
     });
 
     if (existingProduct) {
-      const error = new Error(`Product SKU '${updateData.sku}' is already in use.`);
-      error.statusCode = 400;
-      throw error;
+      throw ApiError.conflict(`Product SKU '${updateData.sku}' is already in use.`);
     }
   }
 
@@ -96,9 +99,7 @@ export const updateProduct = async (id, updateData) => {
   });
 
   if (!product) {
-    const error = new Error('Product not found for update');
-    error.statusCode = 404;
-    throw error;
+    throw ApiError.notFound('Product not found for update');
   }
 
   return product;
@@ -110,9 +111,7 @@ export const updateProduct = async (id, updateData) => {
 export const deleteProduct = async (id) => {
   const product = await Product.findByIdAndDelete(id);
   if (!product) {
-    const error = new Error('Product not found for deletion');
-    error.statusCode = 404;
-    throw error;
+    throw ApiError.notFound('Product not found for deletion');
   }
   return { message: 'Product deleted successfully' };
 };

@@ -90,7 +90,7 @@ const LoginForm = () => {
       </button>
 
       <p className="auth-footer-text">
-        Don't have an account?{' '}
+        Don&apos;t have an account?{' '}
         <Link to="/register" className="text-link">
           Create account
         </Link>

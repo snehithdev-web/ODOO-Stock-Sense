@@ -1,6 +1,6 @@
 import React from 'react';
 import StatusBadge from '../../components/StatusBadge';
-import { Package, Tag, MapPin, Layers, DollarSign, Calendar, User, X } from 'lucide-react';
+import { Package, Tag, MapPin, Layers, User, X } from 'lucide-react';
 
 const ProductDetails = ({ product, onClose, onEdit }) => {
   if (!product) return null;

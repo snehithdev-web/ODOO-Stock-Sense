@@ -5,7 +5,6 @@ import ProductForm from './ProductForm';
 import ProductDetails from './ProductDetails';
 import StatusBadge from '../../components/StatusBadge';
 import {
-  Package,
   Search,
   Plus,
   Edit2,
@@ -43,7 +42,9 @@ const ProductList = () => {
         category: selectedCategory,
       });
 
-      const list = response.data?.products || [];
+      // The list endpoint returns the shared { status, message, data, pagination }
+      // envelope, with the product array under `data`.
+      const list = response.data || [];
       setProducts(list);
 
       // Extract unique categories for filter dropdown

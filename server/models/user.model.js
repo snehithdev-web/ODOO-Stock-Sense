@@ -35,6 +35,13 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    // Counts failed verify-otp attempts so a 6 digit code cannot be brute
+    // forced by walking every combination inside the expiry window.
+    resetPasswordOtpAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
     isOtpVerified: {
       type: Boolean,
       default: false,

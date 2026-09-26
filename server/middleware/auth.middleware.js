@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/user.model.js';
+import { getJwtSecret } from '../utils/jwt.js';
 
 /**
  * Middleware to protect routes and verify JWT token
@@ -22,10 +23,7 @@ export const protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'stocksense_jwt_secret_key_hackathon_2026'
-    );
+    const decoded = jwt.verify(token, getJwtSecret());
 
     const user = await User.findById(decoded.id).select('-password');
 

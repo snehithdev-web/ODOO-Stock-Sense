@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from './StatusBadge';
-import { Package, LogOut, User, Shield, Boxes } from 'lucide-react';
+import { Package, LogOut, User, Boxes } from 'lucide-react';
 
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();

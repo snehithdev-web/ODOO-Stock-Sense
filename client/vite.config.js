@@ -6,6 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // Fail loudly instead of silently moving to 5174 when the port is taken.
+    // The API's CORS allowlist is keyed to this origin, so a quiet port shift
+    // breaks every request from the page with no indication why.
+    strictPort: true,
     open: false,
     proxy: {
       '/api': {

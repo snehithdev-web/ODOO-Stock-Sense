@@ -28,10 +28,9 @@ const registerConnectionListeners = () => {
 const connectDB = async () => {
   registerConnectionListeners();
 
-  const conn = await mongoose.connect(process.env.MONGO_URI || DEFAULT_URI);
-  log('log', `Connected: ${conn.connection.host}/${conn.connection.name}`);
-
-  return conn;
+  // The 'connected' listener above already reports success, so the result is
+  // returned without logging a second time.
+  return mongoose.connect(process.env.MONGO_URI || DEFAULT_URI);
 };
 
 export default connectDB;
