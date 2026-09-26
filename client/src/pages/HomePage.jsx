@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../context/AuthContext';
-import { Package, ShieldCheck, Database, ArrowRight, ArrowRightLeft, Sparkles, Layers } from 'lucide-react';
+import { Package, ShieldCheck, Database, ArrowRight, Sparkles, Layers } from 'lucide-react';
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth();

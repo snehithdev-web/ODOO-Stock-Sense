@@ -92,10 +92,14 @@ const TransferForm = ({ onClose, onSubmit, submitting = false }) => {
     if (validationMessage) return;
 
     const payload = {
-      sourceWarehouse: formData.sourceWarehouse.trim(),
-      sourceLocation: formData.sourceLocation.trim().toUpperCase(),
-      destinationWarehouse: formData.destinationWarehouse.trim(),
-      destinationLocation: formData.destinationLocation.trim().toUpperCase(),
+      from: {
+        warehouse: formData.sourceWarehouse.trim(),
+        location: formData.sourceLocation.trim().toUpperCase(),
+      },
+      to: {
+        warehouse: formData.destinationWarehouse.trim(),
+        location: formData.destinationLocation.trim().toUpperCase(),
+      },
       items: formData.products.map((row) => ({
         product: row.product.trim(),
         quantity: Number(row.quantity),

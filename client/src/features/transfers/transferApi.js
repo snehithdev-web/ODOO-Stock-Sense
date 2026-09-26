@@ -46,9 +46,13 @@ const mockTransfers = [
 ];
 
 export const normalizeTransfer = (transfer = {}) => {
-  const sourceWh = typeof transfer.from?.warehouse === 'object' ? transfer.from.warehouse?.name : (transfer.from?.warehouse || transfer.sourceWarehouse || 'Main Warehouse');
+  const sourceWh = typeof transfer.from?.warehouse === 'object'
+    ? transfer.from.warehouse?.name
+    : (transfer.from?.warehouse || transfer.sourceWarehouse || 'Main Warehouse');
   const sourceLoc = transfer.from?.location || transfer.sourceLocation || 'Main Store';
-  const destWh = typeof transfer.to?.warehouse === 'object' ? transfer.to.warehouse?.name : (transfer.to?.warehouse || transfer.destinationWarehouse || 'Destination Warehouse');
+  const destWh = typeof transfer.to?.warehouse === 'object'
+    ? transfer.to.warehouse?.name
+    : (transfer.to?.warehouse || transfer.destinationWarehouse || 'Destination Warehouse');
   const destLoc = transfer.to?.location || transfer.destinationLocation || 'Main Store';
 
   const rawItems = transfer.items || transfer.products || [];

@@ -161,10 +161,15 @@ const transferService = createOperationService({
     const items = readQuantities(rawItems);
     await resolveItems(items);
 
-    const fromWarehouse = input.from?.warehouse || input.sourceWarehouse;
-    const fromLocation = input.from?.location || input.sourceLocation || 'Main Store';
-    const toWarehouse = input.to?.warehouse || input.destinationWarehouse;
-    const toLocation = input.to?.location || input.destinationLocation || 'Main Store';
+    const legacySourceWarehouse = input.sourceWarehouse || input.from?.warehouse;
+    const legacyDestinationWarehouse = input.destinationWarehouse || input.to?.warehouse;
+    const legacySourceLocation = input.sourceLocation || input.from?.location || 'Main Store';
+    const legacyDestinationLocation = input.destinationLocation || input.to?.location || 'Main Store';
+
+    const fromWarehouse = input.from?.warehouse || legacySourceWarehouse;
+    const fromLocation = input.from?.location || legacySourceLocation;
+    const toWarehouse = input.to?.warehouse || legacyDestinationWarehouse;
+    const toLocation = input.to?.location || legacyDestinationLocation;
 
     const from = await resolveLocation({
       warehouse: fromWarehouse,
