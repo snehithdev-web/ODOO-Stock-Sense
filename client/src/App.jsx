@@ -11,6 +11,9 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProductsPage from './pages/ProductsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import ReceiptsPage from './pages/ReceiptsPage';
+import DeliveryOrdersPage from './pages/DeliveryOrdersPage';
+import TransfersPage from './pages/TransfersPage';
+import WarehouseSettingsPage from './pages/WarehouseSettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function App() {
@@ -47,6 +50,30 @@ function App() {
             element={
               <ProtectedRoute>
                 <ReceiptsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/delivery-orders"
+            element={
+              <ProtectedRoute>
+                <DeliveryOrdersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/transfers"
+            element={
+              <ProtectedRoute>
+                <TransfersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/warehouse"
+            element={
+              <ProtectedRoute>
+                <WarehouseSettingsPage />
               </ProtectedRoute>
             }
           />
